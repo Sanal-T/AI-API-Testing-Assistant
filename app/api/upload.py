@@ -2,6 +2,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.parser.openapi_parser import load_spec, extract_endpoints
+
 router = APIRouter()
 
 UPLOAD_DIR = Path("uploads")
@@ -25,8 +27,14 @@ async def upload_spec(file: UploadFile = File(...)):
     with open(file_path, "wb") as buffer:
         buffer.write(await file.read())
 
+    # Parse the uploaded specification
+    spec = load_spec(file_path)
+
+    # Extract endpoints
+    endpoints = extract_endpoints(spec)
+
     return {
-        "message": "File uploaded successfully.",
-        "filename": file.filename,
-        "saved_to": str(file_path)
+        "message": "Specification parsed successfully.",
+        "total_endpoints": len(endpoints),
+        "endpoints": endpoints
     }
