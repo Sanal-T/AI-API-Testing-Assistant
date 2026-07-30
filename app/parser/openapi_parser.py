@@ -22,7 +22,7 @@ def load_spec(file_path: str):
 
 def extract_endpoints(spec: dict):
     """
-    Extract all API endpoints and HTTP methods.
+    Extract endpoint metadata from an OpenAPI specification.
     """
 
     endpoints = []
@@ -33,12 +33,16 @@ def extract_endpoints(spec: dict):
 
         for method, details in methods.items():
 
-            endpoints.append(
-                {
-                    "method": method.upper(),
-                    "path": path,
-                    "summary": details.get("summary", "")
-                }
-            )
+            endpoint = {
+                "method": method.upper(),
+                "path": path,
+                "summary": details.get("summary", ""),
+                "description": details.get("description", ""),
+                "parameters": details.get("parameters", []),
+                "request_body": details.get("requestBody", {}),
+                "responses": details.get("responses", {}),
+            }
+
+            endpoints.append(endpoint)
 
     return endpoints
