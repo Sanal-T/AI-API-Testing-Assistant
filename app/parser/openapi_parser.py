@@ -20,6 +20,25 @@ def load_spec(file_path: str):
 
     raise ValueError("Unsupported file format.")
 
+def resolve_schema_ref(spec: dict, schema: dict):
+    """
+    Resolve an OpenAPI $ref into its actual schema.
+    """
+
+    ref = schema.get("$ref")
+
+    if not ref:
+        return schema
+
+    parts = ref.split("/")
+
+    current = spec
+
+    for part in parts[1:]:
+        current = current.get(part, {})
+
+    return current
+
 def extract_endpoints(spec: dict):
     """
     Extract endpoint metadata from an OpenAPI specification.
@@ -42,6 +61,15 @@ def extract_endpoints(spec: dict):
                 "request_body": details.get("requestBody", {}),
                 "responses": details.get("responses", {}),
             }
+            request_body = endpoint["request_body"]
+
+            content = request_body.get("content", {})
+
+            json_content = content.get("application/json", {})
+
+            schema = json_content.get("schema", {})
+
+            endpoint["resolved_schema"] = resolve_schema_ref(spec, schema)
 
             endpoints.append(endpoint)
 

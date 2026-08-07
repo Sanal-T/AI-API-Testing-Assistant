@@ -2,3 +2,5 @@ uploads/*
 !uploads/.gitkeep
 
 petstore.yaml
+
+sample_api.yaml
