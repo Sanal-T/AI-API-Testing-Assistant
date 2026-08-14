@@ -57,7 +57,7 @@ def extract_endpoints(spec: dict):
                 "path": path,
                 "summary": details.get("summary", ""),
                 "description": details.get("description", ""),
-                "parameters": details.get("parameters", []),
+                "parameters": extract_parameters(details),
                 "request_body": details.get("requestBody", {}),
                 "responses": details.get("responses", {}),
             }
@@ -74,3 +74,21 @@ def extract_endpoints(spec: dict):
             endpoints.append(endpoint)
 
     return endpoints
+
+def extract_parameters(details: dict):
+    """
+    Extract and normalize endpoint parameters.
+    """
+
+    parameters = []
+
+    for parameter in details.get("parameters", []):
+
+        parameters.append({
+            "name": parameter.get("name"),
+            "location": parameter.get("in"),
+            "required": parameter.get("required", False),
+            "schema": parameter.get("schema", {})
+        })
+
+    return parameters
