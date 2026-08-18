@@ -72,8 +72,8 @@ class PipelineEndToEndTests(unittest.TestCase):
         ))
         report = response["report"]
 
-        self.assertEqual(len(generated), 5)
-        self.assertEqual(report["summary"]["counts"]["passed"], 4)
+        self.assertEqual(len(generated), 6)
+        self.assertEqual(report["summary"]["counts"]["passed"], 5)
         self.assertEqual(report["summary"]["counts"]["failed"], 1)
         self.assertEqual(report["summary"]["counts"]["error"], 0)
 
