@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>API Test Assistant</title>
+  <style>
+    :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#182536;background:#f4f7fb;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0}header{background:#11243a;color:white;padding:22px max(24px,calc((100% - 1120px)/2));display:flex;align-items:center;justify-content:space-between}
+    header strong{font-size:18px;letter-spacing:.2px}header span{font-size:13px;color:#b9c8d9}
+    main{max-width:1120px;margin:28px auto;padding:0 20px}.intro{margin-bottom:22px}.intro h1{font-size:27px;margin:0 0 7px}.intro p{margin:0;color:#586a7d}
+    .layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}.card{background:white;border:1px solid #dce4ed;border-radius:12px;padding:20px;box-shadow:0 3px 14px #1b34510b;margin-bottom:16px}
+    h2{font-size:16px;margin:0 0 16px}.field{display:block;margin:0 0 14px}.field>span{display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#42556a}
+    input[type=text],input[type=number],input[type=file],textarea{width:100%;font:inherit;font-size:13px;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#172638}
+    textarea{min-height:70px;resize:vertical;font-family:Consolas,monospace}.hint{font-size:11px;color:#718197;margin-top:5px;line-height:1.4}
+    .check{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-size:13px;line-height:1.4}.check input{margin-top:2px}.button{border:0;border-radius:7px;padding:10px 14px;background:#1769aa;color:white;font-size:13px;font-weight:650;cursor:pointer}.button:hover{background:#12578e}.button.secondary{background:#e8f0f8;color:#24445f}.button:disabled{opacity:.5;cursor:wait}
+    .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.status{font-size:12px;color:#56697c;min-height:18px;margin-top:10px}.status.error{color:#a12626}.status.ok{color:#247047}
+    .hidden{display:none!important}.endpoint{border-top:1px solid #e7edf3;padding:13px 0}.endpoint:first-child{border-top:0}.endpoint-title{font-weight:700;font-size:13px}.endpoint-title small{color:#1769aa;margin-left:6px}.case{display:flex;gap:9px;padding:8px 0 2px 10px;font-size:12px;color:#40546a}.case input{margin:0}.case-name{font-weight:600;color:#26394e}.case-meta{color:#718197;margin-top:3px}
+    .metric-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:9px;margin-bottom:17px}.metric{border:1px solid #e1e8ef;border-radius:8px;padding:11px}.metric strong{display:block;font-size:20px}.metric span{font-size:11px;color:#687b8f;text-transform:uppercase;letter-spacing:.04em}
+    .result-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 0;border-top:1px solid #e7edf3;font-size:12px}.badge{font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.04em}.passed{color:#18804a}.failed,.error{color:#b42318}.unverified{color:#9a6700}.skipped{color:#69788a}.muted{color:#728197}.analysis{background:#f2f7fc;border-radius:8px;padding:13px;margin-top:12px;font-size:13px;line-height:1.5}.analysis h3{font-size:13px;margin:0 0 5px}.analysis ul{margin:4px 0 11px;padding-left:20px}
+    @media(max-width:800px){.layout{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}header{padding:18px 20px}}
+  </style>
+</head>
+<body>
+  <header><strong>◈ API Test Assistant</strong><span>Deterministic tests · Explicit target · Safe by default</span></header>
+  <main>
+    <div class="intro"><h1>Test an API from its OpenAPI spec</h1><p>Upload a contract, inspect generated cases, then run only the cases you select.</p></div>
+    <div class="layout">
+      <section>
+        <div class="card">
+          <h2>1. Upload specification</h2>
+          <label class="field"><span>OpenAPI YAML or JSON (max 5 MiB)</span><input id="specFile" type="file" accept=".yaml,.yml,.json"></label>
+          <button class="button" id="uploadButton">Parse and generate tests</button>
+          <div id="uploadStatus" class="status" role="status"></div>
+        </div>
+        <div id="targetCard" class="card hidden">
+          <h2>2. Configure target</h2>
+          <label class="field"><span>Target base URL</span><input id="baseUrl" type="text" placeholder="https://api.example.com"></label>
+          <label class="field"><span>Allowed hostnames</span><input id="allowedHosts" type="text" placeholder="api.example.com"></label>
+          <button class="button secondary" id="addBaseHost" type="button" style="margin-top:-8px;margin-bottom:12px">Add base URL host to allowlist</button>
+          <div class="hint">The base URL host must be listed explicitly. OpenAPI server URLs are never used as an execution target.</div>
+          <label class="field" style="margin-top:14px"><span>Request headers (JSON object, optional)</span><textarea id="requestHeaders" placeholder='{"Authorization":"Bearer your-token"}'></textarea></label>
+          <label class="field"><span>Request query parameters (JSON object, optional)</span><textarea id="requestQuery" placeholder='{"api_key":"your-key"}'></textarea></label>
+          <label class="field"><span>Timeout in seconds</span><input id="timeout" type="number" min="0.1" max="60" value="10" step="0.5"></label>
+          <label class="check"><input id="allowPrivate" type="checkbox"><span>Allow local/private network targets (only for an authorized test environment)</span></label>
+          <label class="check"><input id="allowMutating" type="checkbox"><span>Allow POST, PUT, PATCH, and DELETE requests</span></label>
+          <label class="check"><input id="analyze" type="checkbox"><span>Ask AI to analyze failures (sends status and test metadata, not bodies or credentials)</span></label>
+          <button class="button" id="runButton" disabled>Run selected tests</button>
+          <div id="runStatus" class="status" role="status"></div>
+        </div>
+      </section>
+      <section>
+        <div id="casesCard" class="card hidden">
+          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">3. Review test cases</h2><div class="actions"><button class="button secondary" id="selectAll">Select all</button><button class="button secondary" id="selectNone">Clear</button></div></div>
+          <div id="caseSummary" class="hint" style="margin:12px 0"></div>
+          <div id="caseList"></div>
+        </div>
+        <div id="reportCard" class="card hidden">
+          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Execution report</h2><button class="button secondary" id="downloadReport">Download JSON</button></div>
+          <div id="reportContent" style="margin-top:16px"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script>
+    const $ = id => document.getElementById(id);
+    let cases = [];
+    let reportData = null;
+    const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const setStatus = (id, message, kind="") => { $(id).textContent=message; $(id).className=`status ${kind}`; };
+    const updateSelection = () => {
+      const selected = document.querySelectorAll(".case input:checked").length;
+      $("runButton").disabled = selected === 0;
+      $("caseSummary").textContent = `${selected} of ${cases.length} test cases selected`;
+    };
+    function renderCases(endpoints) {
+      cases = endpoints.flatMap(endpoint => endpoint.test_cases || []);
+      $("caseList").innerHTML = endpoints.map(endpoint => `<div class="endpoint"><div class="endpoint-title">${safe(endpoint.method)} ${safe(endpoint.path)} <small>${safe(endpoint.summary || "")}</small></div>${(endpoint.test_cases||[]).map(test => {
+        const index=cases.indexOf(test);
+        return `<label class="case"><input type="checkbox" data-case="${index}" checked><span><span class="case-name">${safe(test.name)}</span><div class="case-meta">${safe(test.type)}${test.expected_status ? ` · expects ${safe(test.expected_status.join(", "))}` : " · expected status not documented"}</div></span></label>`;
+      }).join("")}</div>`).join("");
+      document.querySelectorAll(".case input").forEach(input => input.addEventListener("change", updateSelection));
+      $("casesCard").classList.remove("hidden"); $("targetCard").classList.remove("hidden");
+      $("runButton").disabled=false; updateSelection();
+    }
+    $("uploadButton").addEventListener("click", async () => {
+      const file=$("specFile").files[0]; if(!file){setStatus("uploadStatus","Choose a YAML or JSON spec first.","error");return;}
+      const form=new FormData(); form.append("file",file); $("uploadButton").disabled=true; setStatus("uploadStatus","Parsing specification…");
+      try { const response=await fetch("/upload",{method:"POST",body:form}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||"Upload failed.");
+        renderCases(data.endpoints); setStatus("uploadStatus",`${data.total_endpoints} endpoints parsed successfully.`,"ok"); $("reportCard").classList.add("hidden");
+      } catch(error){setStatus("uploadStatus",error.message,"error");} finally{$("uploadButton").disabled=false;}
+    });
+    $("addBaseHost").addEventListener("click",()=>{try{const host=new URL($("baseUrl").value).hostname;const hosts=$("allowedHosts").value.split(",").map(value=>value.trim()).filter(Boolean);if(!hosts.includes(host))hosts.push(host);$("allowedHosts").value=hosts.join(", ");}catch{setStatus("runStatus","Enter a valid base URL first.","error");}});
+    $("selectAll").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=true);updateSelection();});
+    $("selectNone").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=false);updateSelection();});
+    $("runButton").addEventListener("click",async()=>{
+      let requestHeaders={},requestQuery={}; try {const text=$("requestHeaders").value.trim();requestHeaders=text?JSON.parse(text):{};if(!requestHeaders||Array.isArray(requestHeaders)||typeof requestHeaders!=="object")throw new Error("Headers must be a JSON object.");const queryText=$("requestQuery").value.trim();requestQuery=queryText?JSON.parse(queryText):{};if(!requestQuery||Array.isArray(requestQuery)||typeof requestQuery!=="object")throw new Error("Query parameters must be a JSON object.");}
+      catch(error){setStatus("runStatus",`Invalid request credentials: ${error.message}`,"error");return;}
+      const selected=[...document.querySelectorAll(".case input:checked")].map(input=>cases[Number(input.dataset.case)]);
+      const allowedHosts=$("allowedHosts").value.split(",").map(host=>host.trim()).filter(Boolean);
+      const payload={test_cases:selected,base_url:$("baseUrl").value.trim(),allowed_hosts:allowedHosts,request_headers:requestHeaders,request_query_params:requestQuery,timeout:Number($("timeout").value),allow_private_network:$("allowPrivate").checked,allow_mutating_methods:$("allowMutating").checked,analyze_failures:$("analyze").checked};
+      $("runButton").disabled=true;setStatus("runStatus","Executing selected tests…");
+      try {const response=await fetch("/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.detail||"Test run failed.");reportData=data;renderReport(data);setStatus("runStatus","Run complete.","ok");}
+      catch(error){setStatus("runStatus",error.message,"error");}finally{updateSelection();}
+    });
+    function renderReport(data){
+      const report=data.report, summary=report.summary;
+      const counts=summary.counts;
+      let html=`<div class="metric-grid"><div class="metric"><strong>${summary.total_tests}</strong><span>Total</span></div><div class="metric"><strong>${counts.passed}</strong><span>Passed</span></div><div class="metric"><strong>${counts.failed}</strong><span>Failed</span></div><div class="metric"><strong>${counts.error}</strong><span>Errors</span></div><div class="metric"><strong>${summary.pass_rate===null?"—":`${Math.round(summary.pass_rate*100)}%`}</strong><span>Pass rate</span></div></div>`;
+      html+=report.by_endpoint.map(endpoint=>`<div class="endpoint"><div class="endpoint-title">${safe(endpoint.method)} ${safe(endpoint.path)}</div>${endpoint.results.map(result=>`<div class="result-row"><div><strong>${safe(result.name)}</strong><div class="muted">Expected ${safe(result.expected_status?.join(", ")||"unknown")} · actual ${safe(result.actual_status??"not sent")} · ${safe(Number(result.duration_ms).toFixed(1))} ms${result.error?` · ${safe(result.error)}`:""}</div></div><span class="badge ${safe(result.outcome)}">${safe(result.outcome)}</span></div>`).join("")}</div>`).join("");
+      if(data.analysis){const a=data.analysis;html+=`<div class="analysis"><h3>AI failure analysis</h3><p>${safe(a.summary)}</p>${renderList("Observed facts",a.observed_facts)}${renderList("Hypotheses",a.hypotheses)}${renderList("Recommendations",a.recommendations)}</div>`;}
+      if(data.analysis_error)html+=`<div class="analysis">${safe(data.analysis_error)}</div>`;
+      $("reportContent").innerHTML=html;$("reportCard").classList.remove("hidden");
+    }
+    function renderList(title,items){return items?.length?`<h3>${title}</h3><ul>${items.map(item=>`<li>${safe(item)}</li>`).join("")}</ul>`:"";}
+    $("downloadReport").addEventListener("click",()=>{if(!reportData)return;const blob=new Blob([JSON.stringify(reportData,null,2)],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="api-test-report.json";link.click();URL.revokeObjectURL(link.href);});
+  </script>
+</body>
+</html>
