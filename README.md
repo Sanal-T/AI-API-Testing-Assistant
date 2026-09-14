@@ -15,18 +15,35 @@ Open `http://127.0.0.1:8000/docs` to use the API documentation. `POST /upload` a
 
 ## Safe execution
 
-Execution is available through `app.executor.http_executor.execute_test_case`. Callers must supply an explicit `base_url` and `allowed_hosts`. Private or local targets and mutating methods require separate opt-ins; keep those disabled except for an authorized test environment. The executor does not use OpenAPI server URLs as an implicit target.
+`POST /run` accepts selected test cases returned by `/upload`, plus an explicit `base_url` and `allowed_hosts`. It runs at most 100 cases per request. Private or local targets and mutating methods require separate opt-ins; keep those disabled except for an authorized test environment. The executor does not use OpenAPI server URLs as an implicit target.
 
 ```python
-from app.executor.http_executor import execute_test_case
+import json
+from urllib.request import Request, urlopen
 
-result = execute_test_case(
-    test_case,
-    "http://127.0.0.1:8001",
-    allowed_hosts={"127.0.0.1"},
-    allow_private_network=True,
+payload = {
+    "test_cases": [{
+        "name": "Check health",
+        "method": "GET",
+        "path": "/health",
+        "type": "positive",
+        "expected_status": [200],
+    }],
+    "base_url": "http://127.0.0.1:8001",
+    "allowed_hosts": ["127.0.0.1"],
+    "allow_private_network": True,
+}
+request = Request(
+    "http://127.0.0.1:8000/run",
+    data=json.dumps(payload).encode(),
+    headers={"Content-Type": "application/json"},
+    method="POST",
 )
+with urlopen(request) as response:
+    print(json.loads(response.read())["report"])
 ```
+
+The response contains the execution report and an optional AI analysis. Response bodies and headers are not returned in the report. Private-network access and mutating methods are disabled by default; enabling them is an explicit authorization for that run.
 
 ## Reports
 
