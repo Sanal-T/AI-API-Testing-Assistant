@@ -9,6 +9,123 @@ from app.models.test_case import TestCase
 
 
 class GenerateTestCasesTests(unittest.TestCase):
+    def test_honors_openapi_30_exclusive_bounds_and_nullability(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 10,
+                    "exclusiveMinimum": True,
+                    "exclusiveMaximum": True,
+                },
+                "nickname": {"type": "string", "nullable": True},
+                "required_label": {"type": "string"},
+            },
+        }
+
+        payload = generate_valid_payload(schema)
+        cases = generate_negative_tests(schema)
+        case_names = {case["name"] for case in cases}
+
+        self.assertEqual(payload["score"], 3)
+        self.assertIsNone(payload["nickname"])
+        self.assertIn("At exclusive minimum: score", case_names)
+        self.assertIn("At exclusive maximum: score", case_names)
+        self.assertIn("Null value for non-nullable field: required_label", case_names)
+        self.assertNotIn("Null value for non-nullable field: nickname", case_names)
+
+    def test_generates_invalid_query_cases_and_missing_authentication_case(self):
+        endpoint = {
+            "method": "GET",
+            "path": "/users",
+            "parameters": [
+                {"name": "page", "location": "query", "required": True,
+                 "schema": {"type": "integer", "minimum": 1, "maximum": 5}},
+                {"name": "role", "location": "query",
+                 "schema": {"type": "string", "enum": ["member", "admin"]}},
+            ],
+            "request_body": {},
+            "resolved_schema": {},
+            "responses": {"200": {}, "400": {}, "401": {}, "403": {}, "422": {}},
+            "security_requirements": [{"BearerAuth": []}],
+            "security_schemes": {"BearerAuth": {"type": "http", "scheme": "bearer"}},
+        }
+
+        cases = generate_test_cases(endpoint)
+        by_name = {case.name: case for case in cases}
+
+        self.assertEqual(by_name["Valid request: GET /users"].headers["Authorization"], "Bearer test-token")
+        self.assertEqual(by_name["page below minimum"].query_params["page"], 0)
+        self.assertEqual(by_name["Missing required parameter: page"].expected_status, [400, 422])
+        self.assertIn("page", by_name["Missing required parameter: page"].request_query_exclusions)
+        self.assertEqual(by_name["Invalid enum value: role"].query_params["role"], "__invalid_enum_value__")
+        missing_auth = by_name["Missing authentication: GET /users"]
+        self.assertNotIn("Authorization", missing_auth.headers)
+        self.assertIn("authorization", missing_auth.request_header_exclusions)
+        self.assertEqual(missing_auth.expected_status, [401, 403])
+
+    def test_generates_payloads_for_composed_nullable_and_formatted_schemas(self):
+        schema = {
+            "type": "object",
+            "allOf": [
+                {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                        "name": {"type": "string", "minLength": 4},
+                        "rating": {"type": "integer", "minimum": 1, "maximum": 10},
+                    },
+                },
+                {
+                    "type": "object",
+                    "required": ["id"],
+                    "properties": {
+                        "id": {"oneOf": [
+                            {"type": "integer", "minimum": 2},
+                            {"type": "string"},
+                        ]},
+                        "rating": {"type": "integer", "minimum": 4, "maximum": 8},
+                    },
+                },
+            ],
+            "properties": {
+                "contact": {"type": "string", "format": "email"},
+                "optional_note": {"type": "string", "nullable": True},
+            },
+        }
+
+        payload = generate_valid_payload(schema)
+        self.assertGreaterEqual(len(payload["name"]), 4)
+        self.assertEqual(payload["id"], 2)
+        self.assertEqual(payload["rating"], 4)
+        self.assertEqual(payload["contact"], "john@example.com")
+        self.assertIsNone(payload["optional_note"])
+
+        cases = generate_negative_tests(schema)
+        self.assertTrue(any(case["name"] == "Missing required field: name" for case in cases))
+        self.assertTrue(any(case["name"] == "Missing required field: id" for case in cases))
+        below_minimum = next(case for case in cases if case["name"] == "rating below minimum")
+        self.assertEqual(below_minimum["payload"]["rating"], 3)
+
+    def test_generates_examples_and_negative_cases_for_common_string_formats(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "format": "uuid"},
+                "created": {"type": "string", "format": "date-time"},
+            },
+        }
+
+        payload = generate_valid_payload(schema)
+        case_names = {case["name"] for case in generate_negative_tests(schema)}
+
+        self.assertEqual(payload["id"], "123e4567-e89b-12d3-a456-426614174000")
+        self.assertEqual(payload["created"], "2030-01-02T03:04:05Z")
+        self.assertIn("Invalid uuid format: id", case_names)
+        self.assertIn("Invalid date-time format: created", case_names)
+
     def test_generates_nested_and_string_length_negative_cases(self):
         schema = {
             "type": "object",
