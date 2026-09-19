@@ -18,3 +18,4 @@ class TestCase(BaseModel):
     body: dict[str, Any] | None = None
 
     expected_status: list[int] | None = None
+    rationale: str | None = None
