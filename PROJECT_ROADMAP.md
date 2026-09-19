@@ -148,19 +148,14 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 2: True AI-Powered Test Case Generation (Core Value Proposition)
-- [ ] **Semantic AI Payload Generation**:
-  - Replace static fallback values (`"sample"`, `0`, `1`) with contextually accurate domain data synthesized by an LLM based on field names and schema descriptions.
-  - Examples: Generating realistic postal codes for `zip_code`, realistic ISO currencies for `currency`, real medical codes for `icd_code`.
-- [ ] **Business Logic & Edge-Case Synthesis**:
-  - Instruct the AI to inspect endpoint combinations and generate domain-specific adversarial cases:
-    - Purchasing with negative quantities or zero balances.
-    - Invalid state transitions (e.g. attempting to cancel an already-delivered order).
-    - Privilege escalation payloads (e.g. attempting to modify `role: "admin"` in user update payloads).
-- [ ] **Natural Language Prompt-to-Test Interface**:
-  - Enable users to prompt the assistant in plain English:
-    - *"Generate 10 security-focused tests for the billing and subscription endpoints."*
-    - *"Test inventory race conditions when two orders request the same item."*
-  - Automatically parse the AI output into executable [`TestCase`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/models/test_case.py#L6) schemas.
+- [x] **Semantic AI Payload Generation**:
+  - Implemented [`app/generator/ai_generator.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/generator/ai_generator.py) synthesizing domain-realistic payloads based on endpoint schemas, parameter metadata, and field names.
+- [x] **Business Logic & Edge-Case Synthesis**:
+  - Configured structured prompt engineering for adversarial test generation (boundary attacks, state tampering, privilege escalation).
+  - Enhanced [`TestCase`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/models/test_case.py#L6) model with `rationale` to explain test intent.
+- [x] **Natural Language Prompt-to-Test Interface**:
+  - Added `POST /generate/ai` endpoint in [`app/api/generate.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/api/generate.py) accepting natural language prompts (`user_prompt`) and returning executable `TestCase` objects.
+  - Integrated AI prompt box into [`app/ui/index.html`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/ui/index.html) allowing users to synthesize edge cases on demand and execute them seamlessly.
 
 ---
 

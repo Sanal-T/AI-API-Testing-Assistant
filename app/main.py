@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from app.api.upload import router as upload_router
 from app.api.test_runs import router as test_runs_router
+from app.api.generate import router as generate_router
 
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -32,6 +33,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(upload_router)
 app.include_router(test_runs_router)
+app.include_router(generate_router)
 
 
 @app.get("/", response_class=HTMLResponse)
