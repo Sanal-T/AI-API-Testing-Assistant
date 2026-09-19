@@ -12,7 +12,7 @@ from app.models.test_run import TestRunRequest
 
 class TestRunApiTests(unittest.TestCase):
     def test_executes_explicit_allowlisted_batch_and_returns_safe_report(self):
-        request = self._request()
+        request = self._request(request_headers={"Authorization": "Bearer caller-secret"})
         with patch("app.api.test_runs.execute_test_case", side_effect=self._execute) as execute:
             response = run_tests(request)
 
@@ -23,6 +23,8 @@ class TestRunApiTests(unittest.TestCase):
         self.assertIsNone(response["analysis"])
         self.assertNotIn("response_body", str(response))
         self.assertNotIn("secret body", str(response))
+        self.assertNotIn("caller-secret", str(response))
+        self.assertEqual(execute.call_args_list[0].args[0].headers["Authorization"], "Bearer caller-secret")
 
     def test_rejects_unallowlisted_target_and_mutating_tests_before_execution(self):
         with patch("app.api.test_runs.execute_test_case") as execute:
@@ -34,6 +36,11 @@ class TestRunApiTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as raised:
                 run_tests(self._request(test_cases=[self._case(method="DELETE")]))
             self.assertIn("allow_mutating_methods", raised.exception.detail)
+            execute.assert_not_called()
+
+            with self.assertRaises(HTTPException) as raised:
+                run_tests(self._request(request_headers={"Host": "internal.example"}))
+            self.assertIn("controlled by the executor", raised.exception.detail)
             execute.assert_not_called()
 
     def test_opt_in_analysis_is_called_only_for_failed_results(self):
@@ -65,6 +72,31 @@ class TestRunApiTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.status_code, 503)
         execute.assert_not_called()
+
+    def test_run_credentials_do_not_restore_intentionally_missing_parameters(self):
+        case = TestCase(
+            name="Missing required parameter: api_key",
+            method="GET",
+            path="/health",
+            type="negative",
+            request_query_exclusions={"api_key"},
+        )
+        request = self._request(
+            test_cases=[case],
+            request_query_params={"api_key": "secret", "page": "2"},
+        )
+        with patch("app.api.test_runs.execute_test_case") as execute:
+            execute.return_value = TestExecutionResult(
+                test_case=case,
+                outcome=ExecutionOutcome.PASSED,
+                actual_status=200,
+                duration_ms=1,
+            )
+            run_tests(request)
+
+        executed_case = execute.call_args.args[0]
+        self.assertNotIn("api_key", executed_case.query_params)
+        self.assertEqual(executed_case.query_params["page"], "2")
 
     @staticmethod
     def _case(name="health", method="GET"):
