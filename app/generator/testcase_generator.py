@@ -124,3 +124,54 @@ def generate_negative_tests(schema: dict):
     })
 
     return tests
+
+def generate_parameter_values(parameters: list):
+    """
+    Generate default test values for path, query, and header parameters.
+    """
+
+    values = {
+        "path": {},
+        "query": {},
+        "headers": {}
+    }
+
+    for parameter in parameters:
+        name = parameter.get("name")
+        location = parameter.get("location")
+        schema = parameter.get("schema", {})
+
+        parameter_type = schema.get("type")
+
+        # Use OpenAPI default value when available
+        if "default" in schema:
+            value = schema["default"]
+
+        elif parameter_type == "integer":
+            value = schema.get("minimum", 1)
+
+        elif parameter_type == "number":
+            value = schema.get("minimum", 1)
+
+        elif parameter_type == "boolean":
+            value = True
+
+        elif parameter_type == "string":
+            value = "test-value"
+
+        else:
+            value = "test-value"
+
+        if location == "path":
+            values["path"][name] = value
+
+        elif location == "query":
+            values["query"][name] = value
+
+        elif location == "header":
+            if name.lower() == "authorization":
+                values["headers"][name] = "Bearer test-token"
+            else:
+                values["headers"][name] = value
+
+    return values

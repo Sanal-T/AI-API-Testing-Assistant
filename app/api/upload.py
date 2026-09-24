@@ -1,11 +1,11 @@
 from pathlib import Path
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
-from app.generator.testcase_generator import generate_valid_payload
 from app.parser.openapi_parser import load_spec, extract_endpoints
 from app.generator.testcase_generator import (
     generate_valid_payload,
-    generate_negative_tests
+    generate_negative_tests,
+    generate_parameter_values
 )
 
 router = APIRouter()
@@ -38,11 +38,13 @@ async def upload_spec(file: UploadFile = File(...)):
     endpoints = extract_endpoints(spec)
     for endpoint in endpoints:
         schema = endpoint.get("resolved_schema", {})
+        parameters = endpoint.get("parameters", [])
 
         endpoint["valid_payload"] = generate_valid_payload(schema)
 
-        endpoint["negative_tests"] = generate_negative_tests(schema)
+        endpoint["parameter_values"] = generate_parameter_values(parameters)
 
+    endpoint["negative_tests"] = generate_negative_tests(schema)
     return {
         "message": "Specification parsed successfully.",
         "total_endpoints": len(endpoints),
