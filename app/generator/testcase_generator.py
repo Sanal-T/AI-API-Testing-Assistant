@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from app.models.test_case import TestCase
 
 
@@ -27,14 +29,39 @@ def _generate_schema_value(schema: dict):
 
     if field_type == "string":
         if schema.get("format") == "email":
-            return "john@example.com"
-        return "sample"
+            value = "john@example.com"
+        else:
+            value = "sample"
+        minimum = schema.get("minLength", 0)
+        maximum = schema.get("maxLength")
+        if isinstance(minimum, int) and len(value) < minimum:
+            value = value + ("x" * (minimum - len(value)))
+        if isinstance(maximum, int) and maximum >= 0 and len(value) > maximum:
+            value = value[:maximum]
+        return value
 
     if field_type == "integer":
-        return schema.get("minimum", 0)
+        if "minimum" in schema:
+            value = schema["minimum"]
+        elif isinstance(schema.get("exclusiveMinimum"), (int, float)):
+            value = int(schema["exclusiveMinimum"]) + 1
+        else:
+            value = 0
+        if isinstance(schema.get("maximum"), (int, float)):
+            value = min(value, int(schema["maximum"]))
+        if isinstance(schema.get("exclusiveMaximum"), (int, float)):
+            value = min(value, int(schema["exclusiveMaximum"]) - 1)
+        return value
 
     if field_type == "number":
-        return schema.get("minimum", 0.0)
+        value = schema.get("minimum", 0.0)
+        if isinstance(schema.get("exclusiveMinimum"), (int, float)):
+            value = max(value, schema["exclusiveMinimum"] + 0.1)
+        if isinstance(schema.get("maximum"), (int, float)):
+            value = min(value, schema["maximum"])
+        if isinstance(schema.get("exclusiveMaximum"), (int, float)):
+            value = min(value, schema["exclusiveMaximum"] - 0.1)
+        return value
 
     if field_type == "boolean":
         return True
@@ -56,79 +83,8 @@ def _generate_schema_value(schema: dict):
 
 
 def generate_negative_tests(schema: dict, include_empty_body_test: bool = False):
-    """
-    Generate negative test cases based on OpenAPI schema constraints.
-    """
-
-    tests = []
-
-    valid_payload = generate_valid_payload(schema)
-
-    properties = schema.get("properties", {})
-    required_fields = schema.get("required", [])
-
-    # 1. Missing required fields
-    for field in required_fields:
-        payload = valid_payload.copy()
-        payload.pop(field, None)
-
-        tests.append({
-            "name": f"Missing required field: {field}",
-            "type": "negative",
-            "payload": payload,
-        })
-
-    # 2. Boundary tests and format validation
-    for field, details in properties.items():
-
-        field_type = details.get("type")
-
-        if field_type in {"integer", "number"}:
-
-            minimum = details.get("minimum")
-            maximum = details.get("maximum")
-
-            if minimum is not None:
-                payload = valid_payload.copy()
-                payload[field] = minimum - 1
-
-                tests.append({
-                    "name": f"{field} below minimum",
-                    "type": "negative",
-                    "payload": payload,
-                })
-
-            if maximum is not None:
-                payload = valid_payload.copy()
-                payload[field] = maximum + 1
-
-                tests.append({
-                    "name": f"{field} above maximum",
-                    "type": "negative",
-                    "payload": payload,
-                })
-
-        elif field_type == "string":
-
-            if details.get("format") == "email":
-                payload = valid_payload.copy()
-                payload[field] = "invalid-email"
-
-                tests.append({
-                    "name": f"Invalid email format: {field}",
-                    "type": "negative",
-                    "payload": payload,
-                })
-
-            if "enum" in details:
-                payload = valid_payload.copy()
-                payload[field] = "invalid-value"
-
-                tests.append({
-                    "name": f"Invalid enum value: {field}",
-                    "type": "negative",
-                    "payload": payload,
-                })
+    """Generate deterministic invalid cases for supported schema constraints."""
+    tests = _negative_cases_for_object(schema, generate_valid_payload(schema))
 
     # 3. Empty body, only when the endpoint declares a request body schema.
     if include_empty_body_test:
@@ -139,6 +95,139 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
         })
 
     return tests
+
+
+def _negative_cases_for_object(
+    schema: dict,
+    valid_value: dict,
+    path: tuple[str, ...] = (),
+    root_value: dict | None = None,
+) -> list[dict]:
+    if root_value is None:
+        root_value = valid_value
+    tests = []
+    properties = schema.get("properties", {})
+    required_fields = schema.get("required", [])
+
+    for field in required_fields:
+        invalid_payload = deepcopy(root_value)
+        parent = _value_at_path(invalid_payload, path) if path else invalid_payload
+        parent.pop(field, None)
+        tests.append(_negative_case(f"Missing required field: {'.'.join((*path, field))}", invalid_payload))
+
+    for field, details in properties.items():
+        field_path = (*path, field)
+        field_name = ".".join(field_path)
+        current_value = valid_value.get(field)
+
+        if details.get("type") == "object" or "properties" in details:
+            tests.extend(_negative_cases_for_object(details, current_value or {}, field_path, root_value))
+            continue
+
+        if details.get("type") == "array":
+            tests.extend(_array_constraint_cases(details, current_value or [], field_path, root_value))
+            item_schema = details.get("items", {})
+            if current_value:
+                item_cases = _scalar_constraint_cases(item_schema, current_value[0], field_path, root_value)
+                for item_case in item_cases:
+                    item_payload = item_case["payload"]
+                    invalid_item = _value_at_path(item_payload, field_path)
+                    item_payload = deepcopy(root_value)
+                    _value_at_path(item_payload, field_path)[0] = invalid_item
+                    item_case["payload"] = item_payload
+                    item_case["name"] = f"{item_case['name']}.item"
+                    tests.append(item_case)
+            continue
+
+        tests.extend(_scalar_constraint_cases(details, current_value, field_path, root_value))
+
+    return tests
+
+
+def _scalar_constraint_cases(schema: dict, value, path: tuple[str, ...], valid_root: dict) -> list[dict]:
+    field_name = ".".join(path)
+    tests = []
+
+    def add_case(label: str, invalid_value):
+        payload = deepcopy(valid_root)
+        _set_at_path(payload, path, invalid_value)
+        if label in {"below minimum", "above maximum"}:
+            name = f"{field_name} {label}"
+        else:
+            name = f"{label}: {field_name}"
+        tests.append(_negative_case(name, payload))
+
+    field_type = schema.get("type")
+    if field_type in {"integer", "number"}:
+        for keyword, direction, offset in (
+            ("minimum", "below minimum", -1),
+            ("maximum", "above maximum", 1),
+            ("exclusiveMinimum", "at or below exclusive minimum", 0),
+            ("exclusiveMaximum", "at or above exclusive maximum", 0),
+        ):
+            bound = schema.get(keyword)
+            if isinstance(bound, (int, float)) and not isinstance(bound, bool):
+                invalid_value = bound + offset
+                if keyword == "exclusiveMinimum":
+                    invalid_value = bound
+                elif keyword == "exclusiveMaximum":
+                    invalid_value = bound
+                add_case(direction, invalid_value)
+
+    if field_type == "string":
+        min_length = schema.get("minLength")
+        if isinstance(min_length, int) and min_length > 0:
+            add_case("Below minimum length", "x" * (min_length - 1))
+        max_length = schema.get("maxLength")
+        if isinstance(max_length, int) and max_length >= 0:
+            add_case("Above maximum length", "x" * (max_length + 1))
+        if schema.get("format") == "email":
+            add_case("Invalid email format", "invalid-email")
+
+    enum_values = schema.get("enum")
+    if isinstance(enum_values, list):
+        invalid_enum = "__invalid_enum_value__"
+        while invalid_enum in enum_values:
+            invalid_enum += "_"
+        add_case("Invalid enum value", invalid_enum)
+
+    return tests
+
+
+def _array_constraint_cases(schema: dict, value: list, path: tuple[str, ...], valid_root: dict) -> list[dict]:
+    tests = []
+    field_name = ".".join(path)
+    minimum = schema.get("minItems")
+    maximum = schema.get("maxItems")
+
+    if isinstance(minimum, int) and minimum > 0:
+        payload = deepcopy(valid_root)
+        _set_at_path(payload, path, value[: minimum - 1])
+        tests.append(_negative_case(f"Below minimum array size: {field_name}", payload))
+    if isinstance(maximum, int) and maximum >= 0:
+        payload = deepcopy(valid_root)
+        item = value[0] if value else _generate_schema_value(schema.get("items", {}))
+        expanded = list(value)
+        expanded.extend([item] * max(0, maximum - len(expanded)))
+        _set_at_path(payload, path, [*expanded[:maximum], item])
+        tests.append(_negative_case(f"Above maximum array size: {field_name}", payload))
+    return tests
+
+
+def _negative_case(name: str, payload: dict) -> dict:
+    return {"name": name, "type": "negative", "payload": payload}
+
+
+def _set_at_path(value: dict, path: tuple[str, ...], replacement) -> None:
+    for part in path[:-1]:
+        value = value[part]
+    value[path[-1]] = replacement
+
+
+def _value_at_path(value: dict, path: tuple[str, ...]):
+    for part in path:
+        value = value[part]
+    return value
 
 def generate_parameter_values(parameters: list):
     """

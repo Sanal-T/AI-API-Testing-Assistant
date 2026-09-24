@@ -9,6 +9,49 @@ from app.models.test_case import TestCase
 
 
 class GenerateTestCasesTests(unittest.TestCase):
+    def test_generates_nested_and_string_length_negative_cases(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "profile": {
+                    "type": "object",
+                    "required": ["nickname"],
+                    "properties": {
+                        "nickname": {"type": "string", "minLength": 3, "maxLength": 8},
+                    },
+                },
+            },
+        }
+
+        payload = generate_valid_payload(schema)
+        cases = generate_negative_tests(schema)
+        by_name = {case["name"]: case["payload"] for case in cases}
+
+        self.assertGreaterEqual(len(payload["profile"]["nickname"]), 3)
+        self.assertEqual(by_name["Missing required field: profile.nickname"]["profile"], {})
+        self.assertEqual(by_name["Below minimum length: profile.nickname"]["profile"]["nickname"], "xx")
+        self.assertEqual(len(by_name["Above maximum length: profile.nickname"]["profile"]["nickname"]), 9)
+
+    def test_generates_enum_and_array_item_and_size_negative_cases(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "codes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 2,
+                    "items": {"type": "integer", "enum": [1, 2]},
+                },
+            },
+        }
+
+        cases = generate_negative_tests(schema)
+        by_name = {case["name"]: case["payload"]["codes"] for case in cases}
+
+        self.assertEqual(by_name["Below minimum array size: codes"], [])
+        self.assertEqual(len(by_name["Above maximum array size: codes"]), 3)
+        self.assertNotIn(1, by_name["Invalid enum value: codes.item"])
+
     def test_generates_nested_objects_arrays_and_numbers(self):
         schema = {
             "type": "object",
