@@ -4,6 +4,53 @@ from app.parser.openapi_parser import extract_endpoints, resolve_schema_ref
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_extracts_request_schemas_for_each_content_type(self):
+        spec = {
+            "components": {
+                "schemas": {
+                    "Item": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}},
+                    },
+                }
+            },
+            "paths": {
+                "/items": {
+                    "post": {
+                        "requestBody": {
+                            "required": True,
+                            "content": {
+                                "application/json": {
+                                    "schema": {"$ref": "#/components/schemas/Item"},
+                                },
+                                "application/x-www-form-urlencoded": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {"quantity": {"type": "integer"}},
+                                    },
+                                },
+                                "text/plain": {"example": "unused because no schema is declared"},
+                            },
+                        },
+                        "responses": {"201": {"description": "created"}},
+                    }
+                }
+            },
+        }
+
+        endpoint = extract_endpoints(spec)[0]
+
+        self.assertEqual(
+            endpoint["request_body_schemas"]["application/json"]["properties"]["name"]["type"],
+            "string",
+        )
+        self.assertEqual(
+            endpoint["request_body_schemas"]["application/x-www-form-urlencoded"]["properties"]["quantity"]["type"],
+            "integer",
+        )
+        self.assertNotIn("text/plain", endpoint["request_body_schemas"])
+        self.assertEqual(endpoint["resolved_schema"], endpoint["request_body_schemas"]["application/json"])
+
     def test_extracts_response_schemas_by_status_and_media_type(self):
         spec = {
             "components": {
