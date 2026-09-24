@@ -102,6 +102,7 @@ def extract_endpoints(spec: dict):
             endpoint = {
                 "method": method.upper(),
                 "path": path,
+                "server_urls": extract_server_urls(spec, methods, details),
                 "summary": details.get("summary", ""),
                 "description": details.get("description", ""),
                 "parameters": extract_parameters(details, path_item=methods),
@@ -125,6 +126,29 @@ def extract_endpoints(spec: dict):
             endpoints.append(endpoint)
 
     return endpoints
+
+
+def extract_server_urls(spec: dict, path_item: dict, operation: dict) -> list[str]:
+    """Return the effective OpenAPI server URLs for an operation.
+
+    Operation-level servers override path-level servers, which override
+    document-level servers. OpenAPI defaults to the relative URL "/" when
+    no servers are declared. Templated URLs are retained as written.
+    """
+    if "servers" in operation:
+        servers = operation["servers"]
+    elif "servers" in path_item:
+        servers = path_item["servers"]
+    else:
+        servers = spec.get("servers", [{"url": "/"}])
+
+    if not isinstance(servers, list):
+        return []
+    return [
+        server["url"]
+        for server in servers
+        if isinstance(server, dict) and isinstance(server.get("url"), str)
+    ]
 
 
 def extract_request_body_schemas(spec: dict, request_body: dict) -> dict[str, dict]:

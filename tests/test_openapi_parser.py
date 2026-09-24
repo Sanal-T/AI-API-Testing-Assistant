@@ -4,6 +4,38 @@ from app.parser.openapi_parser import extract_endpoints, resolve_schema_ref
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_extracts_effective_server_urls_with_openapi_override_order(self):
+        spec = {
+            "servers": [{"url": "https://global.example/v1"}],
+            "paths": {
+                "/global": {
+                    "get": {"responses": {"200": {}}},
+                },
+                "/path": {
+                    "servers": [{"url": "https://path.example/api"}],
+                    "get": {"responses": {"200": {}}},
+                },
+                "/operation": {
+                    "servers": [{"url": "https://path.example/api"}],
+                    "get": {
+                        "servers": [{"url": "https://{region}.example/api"}],
+                        "responses": {"200": {}},
+                    },
+                },
+            },
+        }
+
+        endpoints = extract_endpoints(spec)
+
+        self.assertEqual(endpoints[0]["server_urls"], ["https://global.example/v1"])
+        self.assertEqual(endpoints[1]["server_urls"], ["https://path.example/api"])
+        self.assertEqual(endpoints[2]["server_urls"], ["https://{region}.example/api"])
+
+    def test_uses_openapi_default_relative_server_when_none_are_declared(self):
+        endpoint = extract_endpoints({"paths": {"/health": {"get": {}}}})[0]
+
+        self.assertEqual(endpoint["server_urls"], ["/"])
+
     def test_extracts_request_schemas_for_each_content_type(self):
         spec = {
             "components": {
