@@ -4,6 +4,30 @@ from app.parser.openapi_parser import extract_endpoints, resolve_schema_ref
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_resolves_parameter_schema_references(self):
+        spec = {
+            "components": {
+                "schemas": {
+                    "UserId": {"type": "integer", "minimum": 1},
+                }
+            },
+            "paths": {
+                "/users/{user_id}": {
+                    "parameters": [{
+                        "name": "user_id",
+                        "in": "path",
+                        "required": True,
+                        "schema": {"$ref": "#/components/schemas/UserId"},
+                    }],
+                    "get": {"responses": {"200": {}}},
+                }
+            },
+        }
+
+        parameter = extract_endpoints(spec)[0]["parameters"][0]
+
+        self.assertEqual(parameter["schema"], {"type": "integer", "minimum": 1})
+
     def test_extracts_effective_server_urls_with_openapi_override_order(self):
         spec = {
             "servers": [{"url": "https://global.example/v1"}],

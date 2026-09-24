@@ -105,7 +105,7 @@ def extract_endpoints(spec: dict):
                 "server_urls": extract_server_urls(spec, methods, details),
                 "summary": details.get("summary", ""),
                 "description": details.get("description", ""),
-                "parameters": extract_parameters(details, path_item=methods),
+                "parameters": extract_parameters(spec, details, path_item=methods),
                 "request_body": details.get("requestBody", {}),
                 "request_body_required": details.get("requestBody", {}).get("required", False) is True,
                 "responses": details.get("responses", {}),
@@ -193,7 +193,7 @@ def extract_response_schemas(spec: dict, responses: dict) -> dict[str, dict]:
     return response_schemas
 
 
-def extract_parameters(details: dict, path_item: dict | None = None):
+def extract_parameters(spec: dict, details: dict, path_item: dict | None = None):
     """
     Extract path-level and operation-level parameters.
 
@@ -209,7 +209,7 @@ def extract_parameters(details: dict, path_item: dict | None = None):
             "name": parameter.get("name"),
             "location": parameter.get("in"),
             "required": parameter.get("required", False),
-            "schema": parameter.get("schema", {})
+            "schema": resolve_schema_ref(spec, parameter.get("schema", {})),
         }
         key = (normalized["name"], normalized["location"])
         parameters_by_key[key] = normalized
