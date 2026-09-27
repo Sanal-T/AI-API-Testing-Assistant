@@ -13,14 +13,18 @@ from app.models.execution_result import (
     ExecutionOutcome,
     TestExecutionResult,
 )
+from app.constants import (
+    BLOCKED_REQUEST_HEADERS,
+    DEFAULT_TIMEOUT_SECONDS,
+    MAX_RESPONSE_BYTES,
+    MUTATING_METHODS,
+    SENSITIVE_RESPONSE_HEADERS,
+)
 from app.models.test_case import TestCase
 
-
-DEFAULT_TIMEOUT_SECONDS = 10.0
-MAX_RESPONSE_BYTES = 1_000_000
-_MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-_BLOCKED_REQUEST_HEADERS = {"host", "content-length", "transfer-encoding"}
-_SENSITIVE_RESPONSE_HEADERS = {"authorization", "proxy-authenticate", "set-cookie"}
+_MUTATING_METHODS = MUTATING_METHODS
+_BLOCKED_REQUEST_HEADERS = BLOCKED_REQUEST_HEADERS
+_SENSITIVE_RESPONSE_HEADERS = SENSITIVE_RESPONSE_HEADERS
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
