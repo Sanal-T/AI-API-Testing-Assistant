@@ -1,3 +1,4 @@
+import logging
 import re
 from urllib.parse import urlsplit
 
@@ -7,6 +8,11 @@ from app.analysis.failure_analyzer import (
     OpenAIResponsesProvider,
     analyze_failures,
 )
+from app.constants import (
+    BLOCKED_REQUEST_HEADERS,
+    MUTATING_METHODS,
+    SUPPORTED_METHODS,
+)
 from app.executor.http_executor import execute_test_case
 from app.models.execution_result import (
     ExecutionOutcome,
@@ -15,11 +21,12 @@ from app.models.execution_result import (
 from app.models.test_run import TestRunRequest
 from app.report.summary import build_execution_report
 
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
-_MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
-_SUPPORTED_METHODS = {"GET", "HEAD", "OPTIONS", *_MUTATING_METHODS}
-_BLOCKED_HEADERS = {"host", "content-length", "transfer-encoding"}
+_MUTATING_METHODS = MUTATING_METHODS
+_SUPPORTED_METHODS = SUPPORTED_METHODS
+_BLOCKED_HEADERS = BLOCKED_REQUEST_HEADERS
 
 
 @router.post("/run")
@@ -85,7 +92,8 @@ def run_tests(request: TestRunRequest) -> dict:
     ):
         try:
             response["analysis"] = analyze_failures(results, provider=provider).model_dump(mode="json")
-        except (RuntimeError, ValueError):
+        except (RuntimeError, ValueError) as exc:
+            logger.warning("AI failure analysis failed: %s", exc, exc_info=True)
             # Preserve the execution report even when the optional provider is unavailable.
             response["analysis_error"] = "Execution completed, but AI analysis was unavailable."
     return response
