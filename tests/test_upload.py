@@ -19,7 +19,7 @@ class UploadProcessingTests(unittest.TestCase):
         self.upload_dir_patch.stop()
         self.temp_dir.cleanup()
 
-    def test_upload_uses_server_filename_and_returns_generated_tests(self):
+    def test_upload_parses_in_memory_without_writing_to_disk(self):
         spec = {
             "openapi": "3.0.3",
             "info": {"title": "Test API", "version": "1.0"},
@@ -30,11 +30,10 @@ class UploadProcessingTests(unittest.TestCase):
         saved_files = list(self.upload_dir.iterdir())
         self.assertEqual(len(endpoints), 1)
         self.assertEqual(len(endpoints[0]["test_cases"]), 1)
-        self.assertEqual(len(saved_files), 1)
-        self.assertEqual(saved_files[0].parent, self.upload_dir)
-        self.assertNotEqual(saved_files[0].name, "unsafe.yaml")
+        # Verify in-memory safety: no files are saved to disk, eliminating upload leakage
+        self.assertEqual(saved_files, [])
 
-    def test_invalid_openapi_document_returns_400_and_is_removed(self):
+    def test_invalid_openapi_document_returns_400_without_writing_to_disk(self):
         with self.assertRaises(HTTPException) as raised:
             upload_module.process_spec_upload("invalid.json", b'{"paths": {}}')
 

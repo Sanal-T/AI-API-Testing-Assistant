@@ -26,6 +26,26 @@ def load_spec(file_path: str):
     raise ValueError("Unsupported file format.")
 
 
+def load_spec_from_string(content: str | bytes, format_hint: str = ".yaml") -> dict:
+    """Parse an OpenAPI specification directly from a string or bytes in memory."""
+    if isinstance(content, bytes):
+        content = content.decode("utf-8")
+    ext = format_hint.lower()
+    if ext in {".yaml", ".yml"}:
+        data = yaml.safe_load(content)
+    elif ext == ".json":
+        data = json.loads(content)
+    else:
+        try:
+            data = yaml.safe_load(content)
+        except Exception:
+            data = json.loads(content)
+    if not isinstance(data, dict):
+        raise ValueError("OpenAPI specification must parse to an object/dictionary.")
+    return data
+
+
+
 def validate_openapi_spec(spec: dict) -> None:
     """Raise a concise ValueError when a parsed document is not valid OpenAPI."""
     try:

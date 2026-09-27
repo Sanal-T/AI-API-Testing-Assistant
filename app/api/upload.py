@@ -1,18 +1,21 @@
+import json
+import logging
 from pathlib import Path
-from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 import yaml
 
-from app.parser.openapi_parser import load_spec, extract_endpoints, validate_openapi_spec
+from app.constants import MAX_UPLOAD_SIZE
 from app.generator.testcase_generator import generate_test_cases
+from app.parser.openapi_parser import extract_endpoints, load_spec_from_string, validate_openapi_spec
 from openapi_spec_validator.exceptions import OpenAPIError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Maintained for directory structure backwards compatibility
 UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
-MAX_UPLOAD_SIZE = 5 * 1024 * 1024
 
 
 @router.post("/upload")
@@ -27,7 +30,7 @@ async def upload_spec(file: UploadFile = File(...)):
 
 
 def process_spec_upload(filename: str | None, contents: bytes) -> list[dict]:
-    """Persist, validate, and parse bounded upload contents safely."""
+    """Validate and parse bounded upload contents in-memory without persistent disk writes."""
     extension = Path(filename or "").suffix.lower()
     if extension not in {".yaml", ".yml", ".json"}:
         raise HTTPException(
@@ -39,18 +42,16 @@ def process_spec_upload(filename: str | None, contents: bytes) -> list[dict]:
     if not contents:
         raise HTTPException(status_code=400, detail="Specification file is empty.")
 
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    file_path = UPLOAD_DIR / f"{uuid4().hex}{extension}"
-    file_path.write_bytes(contents)
-
     try:
-        spec = load_spec(file_path)
+        spec = load_spec_from_string(contents, format_hint=extension)
         validate_openapi_spec(spec)
 
         endpoints = extract_endpoints(spec)
         for endpoint in endpoints:
             endpoint["test_cases"] = generate_test_cases(endpoint)
-    except (OSError, ValueError, yaml.YAMLError, OpenAPIError) as exc:
-        file_path.unlink(missing_ok=True)
+    except (OSError, ValueError, yaml.YAMLError, json.JSONDecodeError, OpenAPIError) as exc:
+        logger.warning("Failed to parse uploaded specification '%s': %s", filename, exc)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    logger.info("Successfully parsed specification '%s' with %d endpoints.", filename, len(endpoints))
     return endpoints
