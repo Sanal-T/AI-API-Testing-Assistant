@@ -1,6 +1,7 @@
 import json
 import yaml
 from pathlib import Path
+from urllib.parse import unquote
 
 _HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
 
@@ -24,21 +25,63 @@ def load_spec(file_path: str):
 
 def resolve_schema_ref(spec: dict, schema: dict):
     """
-    Resolve an OpenAPI $ref into its actual schema.
+    Resolve local schema references recursively in objects and arrays.
     """
+    return _resolve_refs(spec, schema, reference_stack=())
 
-    ref = schema.get("$ref")
 
-    if not ref:
-        return schema
+def _resolve_refs(spec: dict, value, reference_stack: tuple[str, ...]):
+    if isinstance(value, list):
+        return [_resolve_refs(spec, item, reference_stack) for item in value]
+    if not isinstance(value, dict):
+        return value
 
-    parts = ref.split("/")
+    if "$ref" in value:
+        ref = value["$ref"]
+        if not isinstance(ref, str) or not ref.startswith("#/"):
+            raise ValueError(f"Only local JSON Pointer references are supported: {ref!r}")
+        if ref in reference_stack:
+            raise ValueError(f"Circular schema reference detected: {ref}")
 
+        target = _lookup_local_reference(spec, ref)
+        if not isinstance(target, dict):
+            raise ValueError(f"Schema reference {ref!r} does not point to an object.")
+        # Preserve schema siblings while allowing local fields to override the target.
+        resolved = {**target, **{key: item for key, item in value.items() if key != "$ref"}}
+        return _resolve_refs(spec, resolved, reference_stack + (ref,))
+
+    resolved = dict(value)
+    properties = value.get("properties")
+    if isinstance(properties, dict):
+        resolved["properties"] = {
+            name: _resolve_refs(spec, property_schema, reference_stack)
+            for name, property_schema in properties.items()
+        }
+
+    for keyword in ("items", "additionalProperties", "not"):
+        nested_schema = value.get(keyword)
+        if isinstance(nested_schema, (dict, list)):
+            resolved[keyword] = _resolve_refs(spec, nested_schema, reference_stack)
+
+    for keyword in ("allOf", "anyOf", "oneOf", "prefixItems"):
+        nested_schemas = value.get(keyword)
+        if isinstance(nested_schemas, list):
+            resolved[keyword] = _resolve_refs(spec, nested_schemas, reference_stack)
+
+    return resolved
+
+
+def _lookup_local_reference(spec: dict, ref: str):
     current = spec
-
-    for part in parts[1:]:
-        current = current.get(part, {})
-
+    pointer = unquote(ref[2:])
+    for encoded_token in pointer.split("/"):
+        token = encoded_token.replace("~1", "/").replace("~0", "~")
+        if isinstance(current, dict) and token in current:
+            current = current[token]
+        elif isinstance(current, list) and token.isdigit() and int(token) < len(current):
+            current = current[int(token)]
+        else:
+            raise ValueError(f"Unresolved schema reference {ref!r} at token {token!r}.")
     return current
 
 def extract_endpoints(spec: dict):
