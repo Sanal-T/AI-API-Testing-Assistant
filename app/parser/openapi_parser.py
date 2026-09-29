@@ -109,23 +109,39 @@ def extract_endpoints(spec: dict):
                 "request_body_required": details.get("requestBody", {}).get("required", False) is True,
                 "responses": details.get("responses", {}),
             }
+            endpoint["request_body_schemas"] = extract_request_body_schemas(
+                spec,
+                endpoint["request_body"],
+            )
             endpoint["response_schemas"] = extract_response_schemas(
                 spec,
                 endpoint["responses"],
             )
-            request_body = endpoint["request_body"]
-
-            content = request_body.get("content", {})
-
-            json_content = content.get("application/json", {})
-
-            schema = json_content.get("schema", {})
-
-            endpoint["resolved_schema"] = resolve_schema_ref(spec, schema)
+            endpoint["resolved_schema"] = endpoint["request_body_schemas"].get(
+                "application/json",
+                {},
+            )
 
             endpoints.append(endpoint)
 
     return endpoints
+
+
+def extract_request_body_schemas(spec: dict, request_body: dict) -> dict[str, dict]:
+    """Return resolved schemas for each declared request media type."""
+    content = request_body.get("content", {})
+    if not isinstance(content, dict):
+        return {}
+
+    schemas_by_media_type = {}
+    for media_type, media_details in content.items():
+        if not isinstance(media_details, dict) or "schema" not in media_details:
+            continue
+        schemas_by_media_type[media_type] = resolve_schema_ref(
+            spec,
+            media_details["schema"],
+        )
+    return schemas_by_media_type
 
 
 def extract_response_schemas(spec: dict, responses: dict) -> dict[str, dict]:
