@@ -109,6 +109,10 @@ def extract_endpoints(spec: dict):
                 "request_body_required": details.get("requestBody", {}).get("required", False) is True,
                 "responses": details.get("responses", {}),
             }
+            endpoint["response_schemas"] = extract_response_schemas(
+                spec,
+                endpoint["responses"],
+            )
             request_body = endpoint["request_body"]
 
             content = request_body.get("content", {})
@@ -122,6 +126,32 @@ def extract_endpoints(spec: dict):
             endpoints.append(endpoint)
 
     return endpoints
+
+
+def extract_response_schemas(spec: dict, responses: dict) -> dict[str, dict]:
+    """Return response schemas grouped by status code and media type."""
+    response_schemas = {}
+    for status_code, response in responses.items():
+        if not isinstance(response, dict):
+            continue
+        content = response.get("content", {})
+        if not isinstance(content, dict):
+            continue
+
+        schemas_by_media_type = {}
+        for media_type, media_details in content.items():
+            if not isinstance(media_details, dict) or "schema" not in media_details:
+                continue
+            schemas_by_media_type[media_type] = resolve_schema_ref(
+                spec,
+                media_details["schema"],
+            )
+
+        if schemas_by_media_type:
+            response_schemas[str(status_code)] = schemas_by_media_type
+
+    return response_schemas
+
 
 def extract_parameters(details: dict, path_item: dict | None = None):
     """

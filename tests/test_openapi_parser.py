@@ -4,6 +4,54 @@ from app.parser.openapi_parser import extract_endpoints, resolve_schema_ref
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_extracts_response_schemas_by_status_and_media_type(self):
+        spec = {
+            "components": {
+                "schemas": {
+                    "User": {
+                        "type": "object",
+                        "properties": {"name": {"type": "string"}},
+                    },
+                }
+            },
+            "paths": {
+                "/users/{user_id}": {
+                    "get": {
+                        "responses": {
+                            "200": {
+                                "description": "User found",
+                                "content": {
+                                    "application/json": {
+                                        "schema": {"$ref": "#/components/schemas/User"},
+                                    },
+                                    "application/vnd.example+json": {
+                                        "schema": {
+                                            "type": "array",
+                                            "items": {"$ref": "#/components/schemas/User"},
+                                        },
+                                    },
+                                },
+                            },
+                            "404": {"description": "Not found"},
+                        }
+                    }
+                }
+            },
+        }
+
+        endpoint = extract_endpoints(spec)[0]
+
+        self.assertEqual(
+            endpoint["response_schemas"]["200"]["application/json"]["properties"]["name"]["type"],
+            "string",
+        )
+        self.assertEqual(
+            endpoint["response_schemas"]["200"]["application/vnd.example+json"]["items"]["properties"]["name"]["type"],
+            "string",
+        )
+        self.assertNotIn("404", endpoint["response_schemas"])
+        self.assertIn("404", endpoint["responses"])
+
     def test_resolves_references_inside_nested_properties_and_array_items(self):
         spec = {
             "components": {
