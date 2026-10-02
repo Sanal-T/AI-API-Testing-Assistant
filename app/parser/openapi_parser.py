@@ -1,5 +1,7 @@
 import json
 import yaml
+from openapi_spec_validator import validate as validate_openapi
+from openapi_spec_validator.exceptions import OpenAPIError
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -22,6 +24,14 @@ def load_spec(file_path: str):
             return json.load(f)
 
     raise ValueError("Unsupported file format.")
+
+
+def validate_openapi_spec(spec: dict) -> None:
+    """Raise a concise ValueError when a parsed document is not valid OpenAPI."""
+    try:
+        validate_openapi(spec)
+    except OpenAPIError as exc:
+        raise ValueError(f"Invalid OpenAPI specification: {exc}") from exc
 
 def resolve_schema_ref(spec: dict, schema: dict):
     """
