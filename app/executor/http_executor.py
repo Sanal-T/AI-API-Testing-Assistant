@@ -1,9 +1,13 @@
 from dataclasses import dataclass
 import ipaddress
+import json
 import re
 import socket
+from time import perf_counter
 from typing import Any
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from app.models.test_case import TestCase
 
@@ -28,6 +32,91 @@ class ExecutionResult:
     duration_ms: float
     error: str | None = None
     response_truncated: bool = False
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def execute_test_case(
+    test_case: TestCase,
+    base_url: str,
+    *,
+    allowed_hosts: set[str],
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    allow_private_network: bool = False,
+    allow_mutating_methods: bool = False,
+) -> ExecutionResult:
+    """Execute one test case against an explicitly configured target URL.
+
+    The target hostname must be explicitly allowlisted. Private/local destinations
+    and state-changing methods require separate opt-ins. This function is never
+    called by the upload workflow.
+    """
+    if not base_url:
+        raise ValueError("An explicit target base URL is required.")
+    if timeout <= 0 or timeout > 60:
+        raise ValueError("timeout must be greater than 0 and no more than 60 seconds.")
+
+    method = test_case.method.upper()
+    if method not in {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}:
+        raise ValueError(f"Unsupported HTTP method: {method}")
+    if method in _MUTATING_METHODS and not allow_mutating_methods:
+        raise ValueError(
+            f"{method} requests require allow_mutating_methods=True."
+        )
+
+    url = _build_request_url(base_url, test_case.path, test_case.path_params, test_case.query_params)
+    _validate_target_url(
+        url,
+        allowed_hosts=allowed_hosts,
+        allow_private_network=allow_private_network,
+    )
+
+    headers = _build_request_headers(test_case.headers, has_body=test_case.body is not None)
+    body = None if test_case.body is None else json.dumps(test_case.body).encode("utf-8")
+    request = Request(url, data=body, headers=headers, method=method)
+    opener = build_opener(_NoRedirectHandler())
+
+    started = perf_counter()
+    try:
+        response = opener.open(request, timeout=timeout)
+    except HTTPError as response:
+        # urllib represents non-2xx responses as HTTPError; they are still
+        # actual HTTP responses and should be evaluated against the assertion.
+        pass
+    except (URLError, TimeoutError, socket.timeout, OSError) as exc:
+        return ExecutionResult(
+            test_name=test_case.name,
+            expected_status=test_case.expected_status,
+            actual_status=None,
+            passed=None,
+            response_headers={},
+            response_body=None,
+            duration_ms=(perf_counter() - started) * 1000,
+            error=str(getattr(exc, "reason", exc)),
+        )
+
+    with response:
+        response_bytes = response.read(MAX_RESPONSE_BYTES + 1)
+        truncated = len(response_bytes) > MAX_RESPONSE_BYTES
+        response_bytes = response_bytes[:MAX_RESPONSE_BYTES]
+        status = response.status
+        response_headers = _safe_response_headers(response.headers)
+
+    expected = test_case.expected_status
+    passed = None if expected is None else status in expected
+    return ExecutionResult(
+        test_name=test_case.name,
+        expected_status=expected,
+        actual_status=status,
+        passed=passed,
+        response_headers=response_headers,
+        response_body=response_bytes.decode("utf-8", errors="replace"),
+        duration_ms=(perf_counter() - started) * 1000,
+        response_truncated=truncated,
+    )
 
 
 def _build_request_url(
@@ -98,3 +187,26 @@ def _validate_target_url(
             raise ValueError(f"Target hostname could not be resolved safely: {hostname}") from exc
     if not addresses or any(not address.is_global for address in addresses):
         raise ValueError("Private, loopback, link-local, and reserved targets require allow_private_network=True.")
+
+
+def _build_request_headers(headers: dict[str, Any], *, has_body: bool) -> dict[str, str]:
+    result = {}
+    for name, value in headers.items():
+        normalized_name = str(name).lower()
+        if normalized_name in _BLOCKED_REQUEST_HEADERS:
+            raise ValueError(f"The {name} request header is controlled by the executor.")
+        header_value = str(value)
+        if "\r" in str(name) or "\n" in str(name) or "\r" in header_value or "\n" in header_value:
+            raise ValueError("Request headers cannot contain line breaks.")
+        result[str(name)] = header_value
+    if has_body and not any(name.lower() == "content-type" for name in result):
+        result["Content-Type"] = "application/json"
+    return result
+
+
+def _safe_response_headers(headers) -> dict[str, str]:
+    return {
+        name: value
+        for name, value in headers.items()
+        if name.lower() not in _SENSITIVE_RESPONSE_HEADERS
+    }
