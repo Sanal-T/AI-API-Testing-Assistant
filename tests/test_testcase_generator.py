@@ -67,6 +67,20 @@ class GenerateTestCasesTests(unittest.TestCase):
 
         self.assertIsNone(negative.expected_status)
 
+    def test_success_expectation_is_unknown_without_a_documented_numeric_2xx_status(self):
+        endpoint = {
+            "method": "GET",
+            "path": "/users",
+            "parameters": [],
+            "request_body": {},
+            "resolved_schema": {},
+            "responses": {"default": {}, "2XX": {}},
+        }
+
+        cases = generate_test_cases(endpoint)
+
+        self.assertIsNone(cases[0].expected_status)
+
     def test_bodyless_endpoint_gets_no_body_or_negative_body_cases(self):
         endpoint = {
             "method": "GET",

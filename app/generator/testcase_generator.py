@@ -224,9 +224,10 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
     return test_cases
 
 
-def _documented_success_statuses(endpoint: dict) -> list[int]:
+def _documented_success_statuses(endpoint: dict) -> list[int] | None:
     """Return documented numeric 2xx response codes for a positive case."""
-    return [status for status in _documented_status_codes(endpoint) if 200 <= status < 300]
+    statuses = [status for status in _documented_status_codes(endpoint) if 200 <= status < 300]
+    return statuses or None
 
 
 def _documented_validation_error_statuses(endpoint: dict) -> list[int] | None:
