@@ -4,9 +4,9 @@ from pathlib import Path
 from threading import Thread
 import unittest
 
-from app.executor.http_executor import execute_test_case
 from app.generator.testcase_generator import generate_test_cases
-from app.models.execution_result import ExecutionOutcome
+from app.api.test_runs import run_tests
+from app.models.test_run import TestRunRequest
 from app.parser.openapi_parser import extract_endpoints, load_spec
 
 
@@ -63,37 +63,31 @@ class PipelineEndToEndTests(unittest.TestCase):
             for test_case in generate_test_cases(endpoint)
         ]
 
-        results = [
-            execute_test_case(
-                test_case,
-                self.base_url,
-                allowed_hosts={"127.0.0.1"},
-                allow_private_network=True,
-                allow_mutating_methods=True,
-            )
-            for _, test_case in generated
-        ]
+        response = run_tests(TestRunRequest(
+            test_cases=[test_case for _, test_case in generated],
+            base_url=self.base_url,
+            allowed_hosts={"127.0.0.1"},
+            allow_private_network=True,
+            allow_mutating_methods=True,
+        ))
+        report = response["report"]
 
         self.assertEqual(len(generated), 5)
-        self.assertEqual(
-            [result.outcome for result in results].count(ExecutionOutcome.PASSED),
-            4,
-        )
-        self.assertEqual(
-            [result.outcome for result in results].count(ExecutionOutcome.FAILED),
-            1,
-        )
+        self.assertEqual(report["summary"]["counts"]["passed"], 4)
+        self.assertEqual(report["summary"]["counts"]["failed"], 1)
+        self.assertEqual(report["summary"]["counts"]["error"], 0)
 
-        mismatch = next(result for result in results if result.test_case.path == "/mismatch")
-        self.assertEqual(mismatch.actual_status, 418)
-        self.assertEqual(mismatch.test_case.expected_status, [200])
+        all_results = [endpoint_result for endpoint in report["by_endpoint"] for endpoint_result in endpoint["results"]]
+        mismatch = next(result for result in all_results if result["name"].endswith("/mismatch"))
+        self.assertEqual(mismatch["actual_status"], 418)
+        self.assertEqual(mismatch["expected_status"], [200])
 
-        item_results = [result for result in results if result.test_case.path == "/items"]
+        item_endpoint = next(endpoint for endpoint in report["by_endpoint"] if endpoint["path"] == "/items")
         self.assertEqual(
-            {result.actual_status for result in item_results},
+            {result["actual_status"] for result in item_endpoint["results"]},
             {201, 422},
         )
-        self.assertTrue(all(result.error is None for result in results))
+        self.assertIsNone(response["analysis"])
 
 
 if __name__ == "__main__":
