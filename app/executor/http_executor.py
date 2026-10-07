@@ -71,10 +71,10 @@ def execute_test_case(
     started = perf_counter()
     try:
         response = opener.open(request, timeout=timeout)
-    except HTTPError as response:
+    except HTTPError as exc:
         # urllib represents non-2xx responses as HTTPError; they are still
         # actual HTTP responses and should be evaluated against the assertion.
-        pass
+        response = exc
     except (URLError, TimeoutError, socket.timeout, OSError) as exc:
         reason = getattr(exc, "reason", exc)
         error_kind = (

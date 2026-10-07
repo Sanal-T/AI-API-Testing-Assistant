@@ -1,0 +1,33 @@
+openapi: 3.0.0
+info:
+  title: Local execution fixture
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      responses:
+        "200":
+          description: Healthy
+  /mismatch:
+    get:
+      responses:
+        "200":
+          description: Expected success for assertion-failure coverage
+  /items:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+              required:
+                - name
+      responses:
+        "201":
+          description: Item accepted
+        "422":
+          description: Validation failed
