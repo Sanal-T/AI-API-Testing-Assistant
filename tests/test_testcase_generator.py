@@ -1,10 +1,56 @@
 import unittest
 
-from app.generator.testcase_generator import generate_test_cases
+from app.generator.testcase_generator import (
+    generate_negative_tests,
+    generate_test_cases,
+    generate_valid_payload,
+)
 from app.models.test_case import TestCase
 
 
 class GenerateTestCasesTests(unittest.TestCase):
+    def test_generates_nested_objects_arrays_and_numbers(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "price": {"type": "number", "minimum": 1.5},
+                "profile": {
+                    "type": "object",
+                    "properties": {
+                        "email": {"type": "string", "format": "email"},
+                    },
+                },
+                "labels": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["blue", "green"]},
+                    "minItems": 2,
+                },
+            },
+        }
+
+        payload = generate_valid_payload(schema)
+
+        self.assertEqual(payload, {
+            "price": 1.5,
+            "profile": {"email": "john@example.com"},
+            "labels": ["blue", "blue"],
+        })
+
+    def test_generates_number_boundary_cases(self):
+        schema = {
+            "type": "object",
+            "properties": {
+                "score": {"type": "number", "minimum": 1.5, "maximum": 2.5},
+            },
+        }
+
+        tests = generate_negative_tests(schema)
+        below_minimum = next(test for test in tests if test["name"] == "score below minimum")
+        above_maximum = next(test for test in tests if test["name"] == "score above maximum")
+
+        self.assertEqual(below_minimum["payload"]["score"], 0.5)
+        self.assertEqual(above_maximum["payload"]["score"], 3.5)
+
     def test_converts_endpoint_data_without_mixing_request_parts(self):
         endpoint = {
             "method": "POST",

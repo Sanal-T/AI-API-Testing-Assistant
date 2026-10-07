@@ -3,39 +3,56 @@ from app.models.test_case import TestCase
 
 def generate_valid_payload(schema: dict):
     """
-    Generate a valid request body from a schema.
+    Generate a representative request body, including nested objects and arrays.
     """
+    return _generate_object_payload(schema)
 
+
+def _generate_object_payload(schema: dict) -> dict:
     payload = {}
-
-    properties = schema.get("properties", {})
-
-    for field, details in properties.items():
-
-        field_type = details.get("type")
-
-        if field_type == "string":
-
-            if details.get("format") == "email":
-                payload[field] = "john@example.com"
-
-            elif "enum" in details:
-                payload[field] = details["enum"][0]
-
-            else:
-                payload[field] = "sample"
-
-        elif field_type == "integer":
-
-            minimum = details.get("minimum", 0)
-
-            payload[field] = minimum
-
-        elif field_type == "boolean":
-
-            payload[field] = True
-
+    for field, details in schema.get("properties", {}).items():
+        payload[field] = _generate_schema_value(details)
     return payload
+
+
+def _generate_schema_value(schema: dict):
+    if "default" in schema:
+        return schema["default"]
+
+    if "enum" in schema:
+        enum_values = schema["enum"]
+        return enum_values[0] if enum_values else None
+
+    field_type = schema.get("type")
+
+    if field_type == "string":
+        if schema.get("format") == "email":
+            return "john@example.com"
+        return "sample"
+
+    if field_type == "integer":
+        return schema.get("minimum", 0)
+
+    if field_type == "number":
+        return schema.get("minimum", 0.0)
+
+    if field_type == "boolean":
+        return True
+
+    if field_type == "object" or "properties" in schema:
+        return _generate_object_payload(schema)
+
+    if field_type == "array":
+        item_schema = schema.get("items", {})
+        minimum_items = max(0, schema.get("minItems", 0))
+        count = max(1, minimum_items)
+        maximum_items = schema.get("maxItems")
+        if maximum_items is not None:
+            count = min(count, maximum_items)
+        return [_generate_schema_value(item_schema) for _ in range(count)]
+
+    # An unconstrained schema accepts any JSON value; a string is a simple sample.
+    return "sample"
 
 
 def generate_negative_tests(schema: dict, include_empty_body_test: bool = False):
@@ -66,7 +83,7 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
 
         field_type = details.get("type")
 
-        if field_type == "integer":
+        if field_type in {"integer", "number"}:
 
             minimum = details.get("minimum")
             maximum = details.get("maximum")
