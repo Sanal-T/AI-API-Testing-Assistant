@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import ipaddress
 import json
 import re
@@ -9,6 +8,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
+from app.models.execution_result import (
+    ExecutionErrorKind,
+    ExecutionOutcome,
+    TestExecutionResult,
+)
 from app.models.test_case import TestCase
 
 
@@ -17,21 +21,6 @@ MAX_RESPONSE_BYTES = 1_000_000
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _BLOCKED_REQUEST_HEADERS = {"host", "content-length", "transfer-encoding"}
 _SENSITIVE_RESPONSE_HEADERS = {"authorization", "proxy-authenticate", "set-cookie"}
-
-
-@dataclass(frozen=True)
-class ExecutionResult:
-    """Observed result from one HTTP request and its status assertion."""
-
-    test_name: str
-    expected_status: list[int] | None
-    actual_status: int | None
-    passed: bool | None
-    response_headers: dict[str, str]
-    response_body: str | None
-    duration_ms: float
-    error: str | None = None
-    response_truncated: bool = False
 
 
 class _NoRedirectHandler(HTTPRedirectHandler):
@@ -47,7 +36,7 @@ def execute_test_case(
     timeout: float = DEFAULT_TIMEOUT_SECONDS,
     allow_private_network: bool = False,
     allow_mutating_methods: bool = False,
-) -> ExecutionResult:
+) -> TestExecutionResult:
     """Execute one test case against an explicitly configured target URL.
 
     The target hostname must be explicitly allowlisted. Private/local destinations
@@ -87,15 +76,22 @@ def execute_test_case(
         # actual HTTP responses and should be evaluated against the assertion.
         pass
     except (URLError, TimeoutError, socket.timeout, OSError) as exc:
-        return ExecutionResult(
-            test_name=test_case.name,
-            expected_status=test_case.expected_status,
+        reason = getattr(exc, "reason", exc)
+        error_kind = (
+            ExecutionErrorKind.TIMEOUT
+            if isinstance(exc, (TimeoutError, socket.timeout))
+            or isinstance(reason, (TimeoutError, socket.timeout))
+            else ExecutionErrorKind.NETWORK
+        )
+        return TestExecutionResult(
+            test_case=test_case,
+            outcome=ExecutionOutcome.ERROR,
             actual_status=None,
-            passed=None,
             response_headers={},
             response_body=None,
             duration_ms=(perf_counter() - started) * 1000,
-            error=str(getattr(exc, "reason", exc)),
+            error_kind=error_kind,
+            error=str(reason),
         )
 
     with response:
@@ -106,12 +102,17 @@ def execute_test_case(
         response_headers = _safe_response_headers(response.headers)
 
     expected = test_case.expected_status
-    passed = None if expected is None else status in expected
-    return ExecutionResult(
-        test_name=test_case.name,
-        expected_status=expected,
+    outcome = (
+        ExecutionOutcome.UNVERIFIED
+        if expected is None
+        else ExecutionOutcome.PASSED
+        if status in expected
+        else ExecutionOutcome.FAILED
+    )
+    return TestExecutionResult(
+        test_case=test_case,
+        outcome=outcome,
         actual_status=status,
-        passed=passed,
         response_headers=response_headers,
         response_body=response_bytes.decode("utf-8", errors="replace"),
         duration_ms=(perf_counter() - started) * 1000,
