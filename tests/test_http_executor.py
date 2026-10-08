@@ -1,10 +1,12 @@
 import json
+import socket
 import unittest
 from unittest.mock import patch
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
 
 from app.executor.http_executor import execute_test_case
+from app.models.execution_result import ExecutionErrorKind, ExecutionOutcome
 from app.models.test_case import TestCase
 
 
@@ -52,7 +54,7 @@ class HttpExecutorTests(unittest.TestCase):
 
         request = opener.open.call_args.args[0]
         self.assertEqual(result.actual_status, 201, result.error)
-        self.assertTrue(result.passed)
+        self.assertEqual(result.outcome, ExecutionOutcome.PASSED)
         self.assertIn("/api/users/a%20b", request.full_url)
         self.assertEqual(parse_qs(urlsplit(request.full_url).query), {"active": ["True"]})
         self.assertEqual(request.get_header("X-test"), "yes")
@@ -85,7 +87,7 @@ class HttpExecutorTests(unittest.TestCase):
         self.assertEqual(request.get_method(), "POST")
         self.assertEqual(request.get_header("Content-type"), "application/json")
         self.assertEqual(json.loads(request.data), {"name": "example"})
-        self.assertIsNone(result.passed)
+        self.assertEqual(result.outcome, ExecutionOutcome.UNVERIFIED)
 
     @patch("app.executor.http_executor.build_opener")
     def test_requires_explicit_private_and_mutating_opt_ins(self, build_opener):
@@ -149,8 +151,52 @@ class HttpExecutorTests(unittest.TestCase):
         )
 
         self.assertIsNone(result.actual_status)
-        self.assertIsNone(result.passed)
+        self.assertEqual(result.outcome, ExecutionOutcome.ERROR)
+        self.assertEqual(result.error_kind, ExecutionErrorKind.NETWORK)
         self.assertIn("connection refused", result.error)
+
+    @patch("app.executor.http_executor.build_opener")
+    def test_timeout_is_distinguished_from_other_network_errors(self, build_opener):
+        opener = build_opener.return_value
+        opener.open.side_effect = URLError(socket.timeout("timed out"))
+        test_case = TestCase(
+            name="slow target",
+            method="GET",
+            path="/health",
+            type="positive",
+            expected_status=[200],
+        )
+
+        result = execute_test_case(
+            test_case,
+            self.base_url,
+            allowed_hosts={"127.0.0.1"},
+            allow_private_network=True,
+        )
+
+        self.assertEqual(result.outcome, ExecutionOutcome.ERROR)
+        self.assertEqual(result.error_kind, ExecutionErrorKind.TIMEOUT)
+
+    @patch("app.executor.http_executor.build_opener")
+    def test_known_status_mismatch_is_a_failed_assertion(self, build_opener):
+        opener = build_opener.return_value
+        opener.open.return_value = _FakeResponse()
+        test_case = TestCase(
+            name="expect different status",
+            method="GET",
+            path="/health",
+            type="positive",
+            expected_status=[200],
+        )
+
+        result = execute_test_case(
+            test_case,
+            self.base_url,
+            allowed_hosts={"127.0.0.1"},
+            allow_private_network=True,
+        )
+
+        self.assertEqual(result.outcome, ExecutionOutcome.FAILED)
 
 
 if __name__ == "__main__":
