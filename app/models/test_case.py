@@ -15,4 +15,4 @@ class TestCase(BaseModel):
 
     body: dict[str, Any] | None = None
 
-    expected_status: list[int] = Field(default_factory=list)
+    expected_status: list[int] | None = None

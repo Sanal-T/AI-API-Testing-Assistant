@@ -59,7 +59,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
             "name": f"Missing required field: {field}",
             "type": "negative",
             "payload": payload,
-            "expected": "4xx"
         })
 
     # 2. Boundary tests and format validation
@@ -80,7 +79,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
                     "name": f"{field} below minimum",
                     "type": "negative",
                     "payload": payload,
-                    "expected": "4xx"
                 })
 
             if maximum is not None:
@@ -91,7 +89,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
                     "name": f"{field} above maximum",
                     "type": "negative",
                     "payload": payload,
-                    "expected": "4xx"
                 })
 
         elif field_type == "string":
@@ -104,7 +101,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
                     "name": f"Invalid email format: {field}",
                     "type": "negative",
                     "payload": payload,
-                    "expected": "4xx"
                 })
 
             if "enum" in details:
@@ -115,7 +111,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
                     "name": f"Invalid enum value: {field}",
                     "type": "negative",
                     "payload": payload,
-                    "expected": "4xx"
                 })
 
     # 3. Empty body, only when the endpoint declares a request body schema.
@@ -124,7 +119,6 @@ def generate_negative_tests(schema: dict, include_empty_body_test: bool = False)
             "name": "Empty request body",
             "type": "negative",
             "payload": {},
-            "expected": "4xx"
         })
 
     return tests
@@ -223,9 +217,7 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
                 query_params=parameter_values["query"],
                 headers=parameter_values["headers"],
                 body=negative_test["payload"],
-                # The current generator's generic "4xx" expectation does not
-                # identify a specific status code, so leave it explicitly unknown.
-                expected_status=[],
+                expected_status=_documented_validation_error_statuses(endpoint),
             )
         )
 
@@ -234,12 +226,23 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
 
 def _documented_success_statuses(endpoint: dict) -> list[int]:
     """Return documented numeric 2xx response codes for a positive case."""
-    statuses = []
+    return [status for status in _documented_status_codes(endpoint) if 200 <= status < 300]
+
+
+def _documented_validation_error_statuses(endpoint: dict) -> list[int] | None:
+    """Return documented 400/422 statuses for schema-validation failures."""
+    documented_statuses = _documented_status_codes(endpoint)
+    expected_statuses = [status for status in (400, 422) if status in documented_statuses]
+    return expected_statuses or None
+
+
+def _documented_status_codes(endpoint: dict) -> set[int]:
+    statuses = set()
     for response_code in endpoint.get("responses", {}):
         try:
             status = int(response_code)
         except (TypeError, ValueError):
             continue
-        if 200 <= status < 300:
-            statuses.append(status)
-    return sorted(set(statuses))
+        if 100 <= status <= 599:
+            statuses.add(status)
+    return statuses

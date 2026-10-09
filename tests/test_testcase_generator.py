@@ -30,7 +30,7 @@ class GenerateTestCasesTests(unittest.TestCase):
                 "properties": {"name": {"type": "string"}},
                 "required": ["name"],
             },
-            "responses": {"201": {}, "400": {}, "default": {}},
+            "responses": {"201": {}, "400": {}, "422": {}, "default": {}},
         }
 
         cases = generate_test_cases(endpoint)
@@ -46,8 +46,26 @@ class GenerateTestCasesTests(unittest.TestCase):
         self.assertEqual(positive.body, {"name": "sample"})
         self.assertEqual(positive.expected_status, [201])
         self.assertEqual(missing_required.body, {})
-        self.assertEqual(missing_required.expected_status, [])
+        self.assertEqual(missing_required.expected_status, [400, 422])
         self.assertEqual(empty_body.body, {})
+        self.assertEqual(empty_body.expected_status, [400, 422])
+
+    def test_validation_expectation_is_unknown_when_no_matching_status_is_documented(self):
+        endpoint = {
+            "method": "POST",
+            "path": "/users",
+            "parameters": [],
+            "request_body": {
+                "content": {"application/json": {"schema": {"type": "object", "required": ["name"]}}}
+            },
+            "resolved_schema": {"type": "object", "required": ["name"]},
+            "responses": {"201": {}, "409": {}},
+        }
+
+        cases = generate_test_cases(endpoint)
+        negative = next(case for case in cases if case.name == "Missing required field: name")
+
+        self.assertIsNone(negative.expected_status)
 
     def test_bodyless_endpoint_gets_no_body_or_negative_body_cases(self):
         endpoint = {
