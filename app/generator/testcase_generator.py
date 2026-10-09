@@ -35,7 +35,7 @@ def generate_valid_payload(schema: dict):
     return payload
 
 
-def generate_negative_tests(schema: dict):
+def generate_negative_tests(schema: dict, include_empty_body_test: bool = False):
     """
     Generate negative test cases based on OpenAPI schema constraints.
     """
@@ -115,13 +115,14 @@ def generate_negative_tests(schema: dict):
                     "expected": "4xx"
                 })
 
-    # 3. Empty body
-    tests.append({
-        "name": "Empty request body",
-        "type": "negative",
-        "payload": {},
-        "expected": "4xx"
-    })
+    # 3. Empty body, only when the endpoint declares a request body schema.
+    if include_empty_body_test:
+        tests.append({
+            "name": "Empty request body",
+            "type": "negative",
+            "payload": {},
+            "expected": "4xx"
+        })
 
     return tests
 

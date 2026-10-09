@@ -39,12 +39,20 @@ async def upload_spec(file: UploadFile = File(...)):
     for endpoint in endpoints:
         schema = endpoint.get("resolved_schema", {})
         parameters = endpoint.get("parameters", [])
+        request_body = endpoint.get("request_body", {})
+        content = request_body.get("content", {})
+        has_request_body_schema = any(
+            isinstance(media_type, dict) and "schema" in media_type
+            for media_type in content.values()
+        )
 
         endpoint["valid_payload"] = generate_valid_payload(schema)
 
         endpoint["parameter_values"] = generate_parameter_values(parameters)
-
-    endpoint["negative_tests"] = generate_negative_tests(schema)
+        endpoint["negative_tests"] = generate_negative_tests(
+            schema,
+            include_empty_body_test=has_request_body_schema,
+        )
     return {
         "message": "Specification parsed successfully.",
         "total_endpoints": len(endpoints),
