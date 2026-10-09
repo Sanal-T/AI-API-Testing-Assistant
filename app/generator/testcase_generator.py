@@ -1,3 +1,6 @@
+from app.models.test_case import TestCase
+
+
 def generate_valid_payload(schema: dict):
     """
     Generate a valid request body from a schema.
@@ -176,3 +179,67 @@ def generate_parameter_values(parameters: list):
                 values["headers"][name] = value
 
     return values
+
+
+def generate_test_cases(endpoint: dict) -> list[TestCase]:
+    """Build validated test cases from one extracted endpoint."""
+    schema = endpoint.get("resolved_schema", {})
+    request_body = endpoint.get("request_body", {})
+    content = request_body.get("content", {})
+    has_request_body_schema = any(
+        isinstance(media_type, dict) and "schema" in media_type
+        for media_type in content.values()
+    )
+
+    parameter_values = generate_parameter_values(endpoint.get("parameters", []))
+    valid_payload = generate_valid_payload(schema)
+    expected_success_statuses = _documented_success_statuses(endpoint)
+
+    test_cases = [
+        TestCase(
+            name=f"Valid request: {endpoint['method']} {endpoint['path']}",
+            method=endpoint["method"],
+            path=endpoint["path"],
+            type="positive",
+            path_params=parameter_values["path"],
+            query_params=parameter_values["query"],
+            headers=parameter_values["headers"],
+            body=valid_payload if has_request_body_schema else None,
+            expected_status=expected_success_statuses,
+        )
+    ]
+
+    for negative_test in generate_negative_tests(
+        schema,
+        include_empty_body_test=has_request_body_schema,
+    ):
+        test_cases.append(
+            TestCase(
+                name=negative_test["name"],
+                method=endpoint["method"],
+                path=endpoint["path"],
+                type=negative_test["type"],
+                path_params=parameter_values["path"],
+                query_params=parameter_values["query"],
+                headers=parameter_values["headers"],
+                body=negative_test["payload"],
+                # The current generator's generic "4xx" expectation does not
+                # identify a specific status code, so leave it explicitly unknown.
+                expected_status=[],
+            )
+        )
+
+    return test_cases
+
+
+def _documented_success_statuses(endpoint: dict) -> list[int]:
+    """Return documented numeric 2xx response codes for a positive case."""
+    statuses = []
+    for response_code in endpoint.get("responses", {}):
+        try:
+            status = int(response_code)
+        except (TypeError, ValueError):
+            continue
+        if 200 <= status < 300:
+            statuses.append(status)
+    return sorted(set(statuses))
