@@ -4,6 +4,33 @@ from app.parser.openapi_parser import extract_endpoints, resolve_schema_ref
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_extracts_security_schemes_and_effective_operation_requirements(self):
+        bearer_scheme = {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+        api_key_scheme = {"type": "apiKey", "in": "header", "name": "X-API-Key"}
+        global_requirement = {"BearerAuth": []}
+        spec = {
+            "security": [global_requirement],
+            "components": {"securitySchemes": {
+                "BearerAuth": bearer_scheme,
+                "ApiKeyAuth": api_key_scheme,
+            }},
+            "paths": {
+                "/inherited": {"get": {}},
+                "/overridden": {"get": {"security": [{"ApiKeyAuth": []}]}},
+                "/public": {"get": {"security": []}},
+            },
+        }
+
+        endpoints = extract_endpoints(spec)
+
+        self.assertEqual(endpoints[0]["security_requirements"], [global_requirement])
+        self.assertEqual(endpoints[1]["security_requirements"], [{"ApiKeyAuth": []}])
+        self.assertEqual(endpoints[2]["security_requirements"], [])
+        self.assertEqual(endpoints[0]["security_schemes"], {
+            "BearerAuth": bearer_scheme,
+            "ApiKeyAuth": api_key_scheme,
+        })
+
     def test_resolves_parameter_schema_references(self):
         spec = {
             "components": {

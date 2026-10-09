@@ -103,6 +103,8 @@ def extract_endpoints(spec: dict):
                 "method": method.upper(),
                 "path": path,
                 "server_urls": extract_server_urls(spec, methods, details),
+                "security_schemes": extract_security_schemes(spec),
+                "security_requirements": extract_security_requirements(spec, details),
                 "summary": details.get("summary", ""),
                 "description": details.get("description", ""),
                 "parameters": extract_parameters(spec, details, path_item=methods),
@@ -126,6 +128,29 @@ def extract_endpoints(spec: dict):
             endpoints.append(endpoint)
 
     return endpoints
+
+
+def extract_security_schemes(spec: dict) -> dict:
+    """Return the declared named security schemes without inventing credentials."""
+    components = spec.get("components", {})
+    if not isinstance(components, dict):
+        return {}
+    schemes = components.get("securitySchemes", {})
+    return schemes if isinstance(schemes, dict) else {}
+
+
+def extract_security_requirements(spec: dict, operation: dict) -> list[dict]:
+    """Return effective OpenAPI security requirements for an operation.
+
+    An operation-level ``security`` field replaces document-level security;
+    an explicit empty list means authentication is not required for that
+    operation. Each list entry is an alternative requirement object.
+    """
+    if "security" in operation:
+        requirements = operation["security"]
+    else:
+        requirements = spec.get("security", [])
+    return requirements if isinstance(requirements, list) else []
 
 
 def extract_server_urls(spec: dict, path_item: dict, operation: dict) -> list[str]:
