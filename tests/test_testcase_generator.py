@@ -61,6 +61,7 @@ class GenerateTestCasesTests(unittest.TestCase):
                 {"name": "X-Trace", "location": "header", "schema": {"type": "string"}},
             ],
             "request_body": {
+                "required": True,
                 "content": {
                     "application/json": {
                         "schema": {
@@ -145,6 +146,40 @@ class GenerateTestCasesTests(unittest.TestCase):
         self.assertIsNone(cases[0].body)
         self.assertEqual(cases[0].expected_status, [200])
         self.assertEqual(cases[0].path_params, {"user_id": 1})
+
+    def test_optional_request_body_adds_omission_case_without_empty_body_negative(self):
+        endpoint = {
+            "method": "POST",
+            "path": "/items",
+            "parameters": [],
+            "request_body": {
+                "required": False,
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {"name": {"type": "string"}},
+                            "required": ["name"],
+                        }
+                    }
+                },
+            },
+            "request_body_required": False,
+            "resolved_schema": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}},
+                "required": ["name"],
+            },
+            "responses": {"201": {}, "422": {}},
+        }
+
+        cases = generate_test_cases(endpoint)
+        omitted = next(case for case in cases if case.name.startswith("Omit optional request body"))
+
+        self.assertIsNone(omitted.body)
+        self.assertEqual(omitted.type, "positive")
+        self.assertFalse(any(case.name == "Empty request body" for case in cases))
+        self.assertTrue(any(case.name == "Missing required field: name" for case in cases))
 
 
 if __name__ == "__main__":

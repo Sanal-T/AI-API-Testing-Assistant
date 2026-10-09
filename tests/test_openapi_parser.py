@@ -4,6 +4,32 @@ from app.parser.openapi_parser import extract_endpoints
 
 
 class OpenApiParameterParsingTests(unittest.TestCase):
+    def test_extracts_request_body_required_flag_and_defaults_to_optional(self):
+        spec = {
+            "paths": {
+                "/items": {
+                    "post": {
+                        "requestBody": {
+                            "required": True,
+                            "content": {"application/json": {"schema": {"type": "object"}}},
+                        },
+                        "responses": {"201": {}},
+                    },
+                    "patch": {
+                        "requestBody": {
+                            "content": {"application/json": {"schema": {"type": "object"}}},
+                        },
+                        "responses": {"200": {}},
+                    },
+                }
+            }
+        }
+
+        endpoints = extract_endpoints(spec)
+
+        self.assertTrue(endpoints[0]["request_body_required"])
+        self.assertFalse(endpoints[1]["request_body_required"])
+
     def test_inherits_path_parameters_and_applies_operation_overrides(self):
         spec = {
             "paths": {

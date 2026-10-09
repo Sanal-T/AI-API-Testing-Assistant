@@ -201,6 +201,10 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
         isinstance(media_type, dict) and "schema" in media_type
         for media_type in content.values()
     )
+    request_body_required = endpoint.get(
+        "request_body_required",
+        request_body.get("required", False),
+    ) is True
 
     parameter_values = generate_parameter_values(endpoint.get("parameters", []))
     valid_payload = generate_valid_payload(schema)
@@ -220,9 +224,24 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
         )
     ]
 
+    if has_request_body_schema and not request_body_required:
+        test_cases.append(
+            TestCase(
+                name=f"Omit optional request body: {endpoint['method']} {endpoint['path']}",
+                method=endpoint["method"],
+                path=endpoint["path"],
+                type="positive",
+                path_params=parameter_values["path"],
+                query_params=parameter_values["query"],
+                headers=parameter_values["headers"],
+                body=None,
+                expected_status=expected_success_statuses,
+            )
+        )
+
     for negative_test in generate_negative_tests(
         schema,
-        include_empty_body_test=has_request_body_schema,
+        include_empty_body_test=has_request_body_schema and request_body_required,
     ):
         test_cases.append(
             TestCase(

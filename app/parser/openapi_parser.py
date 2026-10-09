@@ -63,6 +63,7 @@ def extract_endpoints(spec: dict):
                 "description": details.get("description", ""),
                 "parameters": extract_parameters(details, path_item=methods),
                 "request_body": details.get("requestBody", {}),
+                "request_body_required": details.get("requestBody", {}).get("required", False) is True,
                 "responses": details.get("responses", {}),
             }
             request_body = endpoint["request_body"]
