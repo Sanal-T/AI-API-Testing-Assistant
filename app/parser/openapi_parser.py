@@ -2,6 +2,8 @@ import json
 import yaml
 from pathlib import Path
 
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
+
 
 def load_spec(file_path: str):
     """
@@ -51,13 +53,15 @@ def extract_endpoints(spec: dict):
     for path, methods in paths.items():
 
         for method, details in methods.items():
+            if method.lower() not in _HTTP_METHODS:
+                continue
 
             endpoint = {
                 "method": method.upper(),
                 "path": path,
                 "summary": details.get("summary", ""),
                 "description": details.get("description", ""),
-                "parameters": extract_parameters(details),
+                "parameters": extract_parameters(details, path_item=methods),
                 "request_body": details.get("requestBody", {}),
                 "responses": details.get("responses", {}),
             }
@@ -75,20 +79,25 @@ def extract_endpoints(spec: dict):
 
     return endpoints
 
-def extract_parameters(details: dict):
+def extract_parameters(details: dict, path_item: dict | None = None):
     """
-    Extract and normalize endpoint parameters.
+    Extract path-level and operation-level parameters.
+
+    Operation-level parameters override path-level parameters with the same
+    (name, location) pair, as specified by OpenAPI.
     """
+    parameters_by_key = {}
+    inherited_parameters = (path_item or {}).get("parameters", [])
+    operation_parameters = details.get("parameters", [])
 
-    parameters = []
-
-    for parameter in details.get("parameters", []):
-
-        parameters.append({
+    for parameter in [*inherited_parameters, *operation_parameters]:
+        normalized = {
             "name": parameter.get("name"),
             "location": parameter.get("in"),
             "required": parameter.get("required", False),
             "schema": parameter.get("schema", {})
-        })
+        }
+        key = (normalized["name"], normalized["location"])
+        parameters_by_key[key] = normalized
 
-    return parameters
+    return list(parameters_by_key.values())
