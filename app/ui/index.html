@@ -322,7 +322,7 @@
             <span>Upload OpenAPI Document (YAML or JSON, max 5 MiB)</span>
             <input id="specFile" type="file" accept=".yaml,.yml,.json">
           </label>
-          <button class="button" id="uploadButton">Parse & Synthesize Tests</button>
+          <button class="button" id="uploadButton">Parse and generate tests</button>
           <div id="uploadStatus" class="status" role="status"></div>
         </div>
 
@@ -361,7 +361,7 @@
           <label class="check"><input id="allowMutating" type="checkbox" checked><span>Permit mutating verbs (POST, PUT, DELETE, PATCH)</span></label>
           <label class="check"><input id="analyze" type="checkbox"><span>Run AI Failure Diagnosis on errors</span></label>
 
-          <button class="button" id="runButton" style="width:100%;justify-content:center;margin-top:10px" disabled>Execute Selected Tests</button>
+          <button class="button" id="runButton" style="width:100%;justify-content:center;margin-top:10px" disabled>Run selected tests</button>
           <div class="progress-bar-container hidden" id="progressBar">
             <div class="progress-bar-fill" id="progressFill"></div>
           </div>
@@ -420,7 +420,7 @@
           <div class="actions" style="justify-content:space-between">
             <h2 style="margin:0">5. Execution Report & Inspector</h2>
             <div class="actions">
-              <button class="button secondary sm" id="downloadReport">JSON Report</button>
+              <button class="button secondary sm" id="downloadReport">Download JSON</button>
               <button class="button secondary sm" id="downloadMarkdown">Markdown Summary</button>
             </div>
           </div>

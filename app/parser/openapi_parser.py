@@ -1,7 +1,12 @@
 import json
 import yaml
-from openapi_spec_validator import validate as validate_openapi
-from openapi_spec_validator.exceptions import OpenAPIError
+try:
+    from openapi_spec_validator import validate as validate_openapi
+    from openapi_spec_validator.exceptions import OpenAPIError
+except ImportError:
+    validate_openapi = None
+    class OpenAPIError(Exception):
+        pass
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -48,10 +53,16 @@ def load_spec_from_string(content: str | bytes, format_hint: str = ".yaml") -> d
 
 def validate_openapi_spec(spec: dict) -> None:
     """Raise a concise ValueError when a parsed document is not valid OpenAPI."""
-    try:
-        validate_openapi(spec)
-    except OpenAPIError as exc:
-        raise ValueError(f"Invalid OpenAPI specification: {exc}") from exc
+    if validate_openapi is not None:
+        try:
+            validate_openapi(spec)
+        except OpenAPIError as exc:
+            raise ValueError(f"Invalid OpenAPI specification: {exc}") from exc
+    else:
+        if not isinstance(spec, dict) or ("openapi" not in spec and "swagger" not in spec):
+            raise ValueError("Invalid OpenAPI specification: missing 'openapi' or 'swagger' root field.")
+        if "paths" not in spec:
+            raise ValueError("Invalid OpenAPI specification: missing 'paths' field.")
 
 def resolve_schema_ref(spec: dict, schema: dict):
     """

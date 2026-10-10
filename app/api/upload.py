@@ -7,8 +7,12 @@ import yaml
 
 from app.constants import MAX_UPLOAD_SIZE
 from app.generator.testcase_generator import generate_test_cases
-from app.parser.openapi_parser import extract_endpoints, load_spec_from_string, validate_openapi_spec
-from openapi_spec_validator.exceptions import OpenAPIError
+from app.parser.openapi_parser import (
+    OpenAPIError,
+    extract_endpoints,
+    load_spec_from_string,
+    validate_openapi_spec,
+)
 
 logger = logging.getLogger(__name__)
 
