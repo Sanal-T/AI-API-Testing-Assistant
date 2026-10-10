@@ -212,17 +212,21 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 7: Developer Experience, CLI & CI/CD Integration
-- [ ] **Headless CLI Tool**:
-  - Build a terminal runner:
-    ```bash
-    python -m app.cli run --spec openapi.yaml --base-url https://api.staging.internal --output-junit results.xml
-    ```
-- [ ] **CI/CD Exporters**:
-  - Export test execution results in **JUnit XML** format for native rendering in GitHub Actions, GitLab CI, and Azure DevOps.
-  - Generate GitHub PR comment summaries with pass rates and AI recommendations.
-- [ ] **Export to Postman & pytest**:
-  - Export generated test collections directly to **Postman Collection (v2.1)** JSON format.
-  - Export tests to a runnable **pytest** test suite (`test_generated_api.py`).
+- [x] **Headless CLI Tool**:
+  - Implemented [`app/cli.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/cli.py) with subcommands:
+    - `python -m app.cli run --spec openapi.yaml --base-url https://api.staging.internal --output-junit results.xml --output-markdown summary.md`
+    - `python -m app.cli export --spec openapi.yaml --format postman --output postman_collection.json`
+    - `python -m app.cli export --spec openapi.yaml --format pytest --output test_generated_api.py`
+  - Supports configurable concurrency, custom headers (`-H`), query parameters (`-q`), AI failure diagnosis, and CI/CD exit codes.
+- [x] **CI/CD Exporters ([`app/report/exporters.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/report/exporters.py))**:
+  - Standard **JUnit XML** exporter natively recognized by GitHub Actions, GitLab CI, Azure DevOps, and Jenkins.
+  - **GitHub Markdown PR / Step Summary** generator with scorecard metrics, status badges, endpoint tables, and AI recommendations.
+- [x] **Postman & pytest Code Generation**:
+  - Export test suites directly to **Postman Collection (v2.1)** JSON with embedded test scripts and schema compliance.
+  - Export runnable standalone **pytest** test files (`test_generated_api.py`).
+- [x] **HTTP Export Endpoints & Browser UI Actions**:
+  - Added `/export/postman`, `/export/pytest`, `/export/junit`, and `/export/markdown` endpoints in [`app/api/export.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/api/export.py).
+  - Integrated export buttons into [`app/ui/index.html`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/ui/index.html) for one-click browser downloads.
 
 ---
 

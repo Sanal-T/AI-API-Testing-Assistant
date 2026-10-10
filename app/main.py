@@ -9,6 +9,7 @@ from app.api.upload import router as upload_router
 from app.api.test_runs import router as test_runs_router
 from app.api.generate import router as generate_router
 from app.api.workflows import router as workflows_router
+from app.api.export import router as export_router
 
 log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
@@ -36,6 +37,7 @@ app.include_router(upload_router)
 app.include_router(test_runs_router)
 app.include_router(generate_router)
 app.include_router(workflows_router)
+app.include_router(export_router)
 
 
 @app.get("/", response_class=HTMLResponse)

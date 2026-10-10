@@ -57,7 +57,7 @@
       </section>
       <section>
         <div id="casesCard" class="card hidden">
-          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">3. Review test cases</h2><div class="actions"><button class="button secondary" id="selectAll">Select all</button><button class="button secondary" id="selectNone">Clear</button></div></div>
+          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">3. Review test cases</h2><div class="actions"><button class="button secondary" id="selectAll">Select all</button><button class="button secondary" id="selectNone">Clear</button><button class="button secondary" id="exportPostman">Export Postman</button><button class="button secondary" id="exportPytest">Export pytest</button></div></div>
           
           <div class="ai-box">
             <strong>✨ AI Edge Case & Semantic Generator</strong>
@@ -78,7 +78,7 @@
         </div>
 
         <div id="reportCard" class="card hidden">
-          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Execution report</h2><button class="button secondary" id="downloadReport">Download JSON</button></div>
+          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Execution report</h2><div class="actions"><button class="button secondary" id="downloadReport">Download JSON</button><button class="button secondary" id="downloadMarkdown">Download Markdown</button></div></div>
           <div id="reportContent" style="margin-top:16px"></div>
         </div>
       </section>
@@ -295,6 +295,57 @@
     }
     function renderList(title,items){return items?.length?`<h3>${title}</h3><ul>${items.map(item=>`<li>${safe(item)}</li>`).join("")}</ul>`:"";}
     $("downloadReport").addEventListener("click",()=>{if(!reportData)return;const blob=new Blob([JSON.stringify(reportData,null,2)],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="api-test-report.json";link.click();URL.revokeObjectURL(link.href);});
+    $("exportPostman").addEventListener("click", async () => {
+      if(!cases.length) return alert("Upload a specification first.");
+      try {
+        const res = await fetch("/export/postman", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({test_cases: cases, collection_name: "API Tests Collection"})
+        });
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "postman_collection.json";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch(e) { alert("Postman export failed: " + e.message); }
+    });
+    $("exportPytest").addEventListener("click", async () => {
+      if(!cases.length) return alert("Upload a specification first.");
+      try {
+        const res = await fetch("/export/pytest", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({test_cases: cases, base_url: $("baseUrl").value.trim() || "http://localhost:8000"})
+        });
+        const code = await res.text();
+        const blob = new Blob([code], {type: "text/x-python"});
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "test_generated_api.py";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch(e) { alert("pytest export failed: " + e.message); }
+    });
+    $("downloadMarkdown").addEventListener("click", async () => {
+      if(!reportData || !reportData.report) return;
+      try {
+        const res = await fetch("/export/markdown", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({report: reportData.report, analysis: reportData.analysis})
+        });
+        const mdText = await res.text();
+        const blob = new Blob([mdText], {type: "text/markdown"});
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "api_test_summary.md";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch(e) { alert("Markdown export failed: " + e.message); }
+    });
   </script>
 </body>
 </html>
