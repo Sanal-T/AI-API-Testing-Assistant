@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 from app.api.upload import router as upload_router
 from app.api.test_runs import router as test_runs_router
 
@@ -10,8 +13,7 @@ app = FastAPI(
 app.include_router(upload_router)
 app.include_router(test_runs_router)
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 def home():
-    return {
-        "message": "AI API Testing Assistant is running!"
-    }
+    ui_path = Path(__file__).parent / "ui" / "index.html"
+    return ui_path.read_text(encoding="utf-8")
