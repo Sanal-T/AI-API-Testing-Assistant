@@ -17,6 +17,8 @@ class BrowserInterfaceTests(unittest.TestCase):
         self.assertIn("/upload", app.openapi()["paths"])
         self.assertIn("/run", app.openapi()["paths"])
         self.assertIn("/generate/ai", app.openapi()["paths"])
+        self.assertIn("/workflows/generate", app.openapi()["paths"])
+        self.assertIn("/workflows/run", app.openapi()["paths"])
 
     def test_global_exception_handler_captures_error_and_returns_500(self):
         mock_request = MagicMock()

@@ -16,17 +16,20 @@
     .check{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-size:13px;line-height:1.4}.check input{margin-top:2px}.button{border:0;border-radius:7px;padding:10px 14px;background:#1769aa;color:white;font-size:13px;font-weight:650;cursor:pointer}.button:hover{background:#12578e}.button.secondary{background:#e8f0f8;color:#24445f}.button:disabled{opacity:.5;cursor:wait}
     .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.status{font-size:12px;color:#56697c;min-height:18px;margin-top:10px}.status.error{color:#a12626}.status.ok{color:#247047}
     .hidden{display:none!important}.endpoint{border-top:1px solid #e7edf3;padding:13px 0}.endpoint:first-child{border-top:0}.endpoint-title{font-weight:700;font-size:13px}.endpoint-title small{color:#1769aa;margin-left:6px}.case{display:flex;gap:9px;padding:8px 0 2px 10px;font-size:12px;color:#40546a}.case input{margin:0}.case-name{font-weight:600;color:#26394e}.case-meta{color:#718197;margin-top:3px}
-    .metric-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr));gap:9px;margin-bottom:17px}.metric{border:1px solid #e1e8ef;border-radius:8px;padding:11px}.metric strong{display:block;font-size:20px}.metric span{font-size:11px;color:#687b8f;text-transform:uppercase;letter-spacing:.04em}
+    .metric-grid{display:grid;grid-template-columns:repeat(6,minmax(80px,1fr));gap:9px;margin-bottom:17px}.metric{border:1px solid #e1e8ef;border-radius:8px;padding:11px}.metric strong{display:block;font-size:20px}.metric span{font-size:11px;color:#687b8f;text-transform:uppercase;letter-spacing:.04em}
     .result-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 0;border-top:1px solid #e7edf3;font-size:12px}.badge{font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.04em}.passed{color:#18804a}.failed,.error{color:#b42318}.unverified{color:#9a6700}.skipped{color:#69788a}.muted{color:#728197}.analysis{background:#f2f7fc;border-radius:8px;padding:13px;margin-top:12px;font-size:13px;line-height:1.5}.analysis h3{font-size:13px;margin:0 0 5px}.analysis ul{margin:4px 0 11px;padding-left:20px}
     .ai-box{background:#f0f7ff;border:1px solid #c7e0f9;border-radius:8px;padding:12px;margin:12px 0}
     .ai-box strong{display:block;font-size:12px;color:#13598f;margin-bottom:6px}
+    .wf-card{border:1px solid #dbe6f1;border-radius:8px;padding:12px;margin-bottom:12px;background:#fbfcfe}
+    .wf-step{padding:6px 0;border-bottom:1px dashed #e1e9f0;font-size:12px}
+    .wf-step:last-child{border-bottom:0}
     @media(max-width:800px){.layout{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}header{padding:18px 20px}}
   </style>
 </head>
 <body>
-  <header><strong>◈ API Test Assistant</strong><span>Deterministic tests · AI Edge Cases · Explicit target · Safe by default</span></header>
+  <header><strong>◈ API Test Assistant</strong><span>Deterministic tests · AI Edge Cases · Stateful Workflows · Safe by default</span></header>
   <main>
-    <div class="intro"><h1>Test an API from its OpenAPI spec</h1><p>Upload a contract, generate deterministic & AI edge cases, then run selected cases safely.</p></div>
+    <div class="intro"><h1>Test an API from its OpenAPI spec</h1><p>Upload a contract, generate deterministic & AI edge cases, run stateful workflows, and validate responses.</p></div>
     <div class="layout">
       <section>
         <div class="card">
@@ -45,7 +48,7 @@
           <label class="field"><span>Request query parameters (JSON object, optional)</span><textarea id="requestQuery" placeholder='{"api_key":"your-key"}'></textarea></label>
           <label class="field"><span>Timeout in seconds</span><input id="timeout" type="number" min="0.1" max="60" value="10" step="0.5"></label>
           <label class="check"><input id="allowPrivate" type="checkbox"><span>Allow local/private network targets (only for an authorized test environment)</span></label>
-          <label class="check"><input id="allowMutating" type="checkbox"><span>Allow POST, PUT, PATCH, and DELETE requests</span></label>
+          <label class="check"><input id="allowMutating" type="checkbox" checked><span>Allow POST, PUT, PATCH, and DELETE requests</span></label>
           <label class="check"><input id="analyze" type="checkbox"><span>Ask AI to analyze failures (sends status and test metadata, not bodies or credentials)</span></label>
           <button class="button" id="runButton" disabled>Run selected tests</button>
           <div id="runStatus" class="status" role="status"></div>
@@ -59,7 +62,7 @@
             <strong>✨ AI Edge Case & Semantic Generator</strong>
             <div style="display:flex;gap:8px">
               <input id="aiCustomPrompt" type="text" placeholder="Prompt AI: e.g. 'Test negative amounts, IDOR & SQL injection'" style="flex:1;padding:8px 10px;font-size:12px">
-              <button class="button" id="generateAiButton" type="button" style="white-space:nowrap;padding:8px 12px;font-size:12px">Generate with AI</button>
+              <button class="button" id="generateAiButton" type="button" style="white-space:nowrap;padding:8px 12px;font-size:12px">Synthesize Cases</button>
             </div>
             <div id="aiGenStatus" class="status" style="margin-top:6px;font-size:11px"></div>
           </div>
@@ -67,6 +70,12 @@
           <div id="caseSummary" class="hint" style="margin:12px 0"></div>
           <div id="caseList"></div>
         </div>
+
+        <div id="workflowsCard" class="card hidden">
+          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">4. Stateful Workflows (CRUD Chaining)</h2><span class="hint">Multi-step sequences with variable extraction</span></div>
+          <div id="workflowList" style="margin-top:12px"></div>
+        </div>
+
         <div id="reportCard" class="card hidden">
           <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Execution report</h2><button class="button secondary" id="downloadReport">Download JSON</button></div>
           <div id="reportContent" style="margin-top:16px"></div>
@@ -77,6 +86,7 @@
   <script>
     const $ = id => document.getElementById(id);
     let currentEndpoints = [];
+    let currentWorkflows = [];
     let cases = [];
     let reportData = null;
     const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -96,7 +106,74 @@
       document.querySelectorAll(".case input").forEach(input => input.addEventListener("change", updateSelection));
       $("casesCard").classList.remove("hidden"); $("targetCard").classList.remove("hidden");
       $("runButton").disabled=false; updateSelection();
+      loadWorkflows(endpoints);
     }
+    async function loadWorkflows(endpoints){
+      try {
+        const res = await fetch("/workflows/generate", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({endpoints: endpoints})
+        });
+        const data = await res.json();
+        currentWorkflows = data.workflows || [];
+        if(currentWorkflows.length > 0){
+          renderWorkflows(currentWorkflows);
+          $("workflowsCard").classList.remove("hidden");
+        } else {
+          $("workflowsCard").classList.add("hidden");
+        }
+      } catch(e) { console.error("Workflows generation failed", e); }
+    }
+    function renderWorkflows(workflows){
+      $("workflowList").innerHTML = workflows.map((wf, idx) => `
+        <div class="wf-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div><strong>${safe(wf.name)}</strong><div class="hint">${safe(wf.description)}</div></div>
+            <button class="button secondary" onclick="runWorkflow(${idx})">Execute Workflow</button>
+          </div>
+          <div style="font-size:11px;color:#596d81;margin-bottom:6px">Steps:</div>
+          ${wf.steps.map(s => `<div class="wf-step">🔹 <strong>${safe(s.name)}</strong> <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small>${s.extract_variables.length ? ` <span style="color:#1769aa">↳ Extracts: ${safe(s.extract_variables.map(v=>v.variable_name).join(", "))}</span>`:""}</div>`).join("")}
+          ${wf.teardown_steps.map(s => `<div class="wf-step" style="color:#9333ea">🧹 <strong>Teardown:</strong> ${safe(s.name)} <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small></div>`).join("")}
+          <div id="wfResult_${idx}" style="margin-top:8px"></div>
+        </div>
+      `).join("");
+    }
+    window.runWorkflow = async function(idx){
+      const wf = currentWorkflows[idx];
+      const resContainer = $(`wfResult_${idx}`);
+      resContainer.innerHTML = `<span class="hint">Executing workflow sequence…</span>`;
+      const allowedHosts = $("allowedHosts").value.split(",").map(host=>host.trim()).filter(Boolean);
+      let requestHeaders = {};
+      try { const t = $("requestHeaders").value.trim(); if(t) requestHeaders = JSON.parse(t); } catch(e){}
+      try {
+        const res = await fetch("/workflows/run", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            workflow: wf,
+            base_url: $("baseUrl").value.trim(),
+            allowed_hosts: allowedHosts,
+            request_headers: requestHeaders,
+            allow_private_network: $("allowPrivate").checked,
+            allow_mutating_methods: true
+          })
+        });
+        const data = await res.json();
+        if(!res.ok) throw new Error(data.detail || "Workflow run failed.");
+        let outHtml = `<div style="background:${data.passed?'#f6ffed':'#fff2f0'};border:1px solid ${data.passed?'#b7eb8f':'#ffccc7'};padding:8px;border-radius:6px;font-size:12px;margin-top:6px">`;
+        outHtml += `<div><strong>${data.passed ? '✅ Workflow Passed' : '❌ Workflow Failed'}</strong> (${data.duration_ms.toFixed(1)} ms)</div>`;
+        if(Object.keys(data.context_variables).length > 0){
+          outHtml += `<div class="hint" style="color:#1d39c4;margin:4px 0">Variables Captured: ${safe(JSON.stringify(data.context_variables))}</div>`;
+        }
+        if(data.error) outHtml += `<div style="color:#cf1322">${safe(data.error)}</div>`;
+        outHtml += `<div style="margin-top:6px">${data.step_results.map(r => `<div style="font-size:11px">${r.outcome==='passed'?'✓':'✗'} ${safe(r.name)} (${safe(r.method)} ${safe(r.path)}): ${r.actual_status || 'error'}</div>`).join("")}</div>`;
+        outHtml += `</div>`;
+        resContainer.innerHTML = outHtml;
+      } catch(err){
+        resContainer.innerHTML = `<span style="color:#cf1322;font-size:12px">${safe(err.message)}</span>`;
+      }
+    };
     $("uploadButton").addEventListener("click", async () => {
       const file=$("specFile").files[0]; if(!file){setStatus("uploadStatus","Choose a YAML or JSON spec first.","error");return;}
       const form=new FormData(); form.append("file",file); $("uploadButton").disabled=true; setStatus("uploadStatus","Parsing specification…");

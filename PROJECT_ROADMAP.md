@@ -174,13 +174,14 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 4: Multi-Step Stateful API Chaining & Workflows
-- [ ] **Workflow & Dependency Engine**:
-  - Support multi-step ordered test scenarios (e.g. `POST /auth/login` $\rightarrow$ `POST /items` $\rightarrow$ `GET /items/{id}` $\rightarrow$ `DELETE /items/{id}`).
-- [ ] **Variable Extraction & Dynamic Injection**:
-  - Extract dynamic values from preceding responses (e.g., extracting an auth token `$.access_token` or entity ID `$.id`).
-  - Inject extracted variables into subsequent headers, URL paths, query parameters, or request bodies.
-- [ ] **Automated Teardown & Environment Cleanup**:
-  - Ensure data created during mutating test suites is cleaned up by automatically executing matching `DELETE` requests.
+- [x] **Workflow & Dependency Engine**:
+  - Implemented [`app/executor/workflow_runner.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/executor/workflow_runner.py) supporting sequential execution of chained test steps with stop-on-failure controls and teardown hooks.
+- [x] **Variable Extraction & Dynamic Injection**:
+  - Dot-notation extraction from JSON response bodies and response headers via [`VariableExtractor`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/models/workflow.py).
+  - Recursive template interpolation resolving `{{variable_name}}` placeholders in paths, headers, query parameters, and bodies.
+- [x] **Automated Teardown & Environment Cleanup**:
+  - Guaranteed execution of teardown steps (e.g. `DELETE /resource/{id}`) to clean up mutated resources after tests.
+  - Auto-synthesis of full CRUD lifecycle workflows via [`app/generator/workflow_generator.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/generator/workflow_generator.py) and interactive execution in the browser UI.
 
 ---
 
