@@ -16,12 +16,26 @@ def build_execution_report(results: Iterable[TestExecutionResult]) -> dict:
     endpoint_groups = {}
     type_counts = {}
     outcome_counts = Counter()
+    contract_violations_count = 0
+    sla_violations_count = 0
     total = 0
 
     for result in results:
         total += 1
         outcome = result.outcome.value
         outcome_counts[outcome] += 1
+
+        has_contract_violation = bool(
+            result.schema_validation_passed is False
+            or result.schema_validation_errors
+            or result.header_validation_errors
+            or result.assertion_errors
+        )
+        if has_contract_violation:
+            contract_violations_count += 1
+        if result.sla_exceeded:
+            sla_violations_count += 1
+
         test_case = result.test_case
         endpoint_key = (test_case.method.upper(), test_case.path)
         endpoint = endpoint_groups.setdefault(endpoint_key, {
@@ -43,6 +57,11 @@ def build_execution_report(results: Iterable[TestExecutionResult]) -> dict:
             "duration_ms": result.duration_ms,
             "error_kind": result.error_kind.value if result.error_kind else None,
             "error": result.error,
+            "schema_validation_passed": result.schema_validation_passed,
+            "schema_validation_errors": result.schema_validation_errors,
+            "header_validation_errors": result.header_validation_errors,
+            "assertion_errors": result.assertion_errors,
+            "sla_exceeded": result.sla_exceeded,
         })
 
     passed = outcome_counts[ExecutionOutcome.PASSED.value]
@@ -57,6 +76,8 @@ def build_execution_report(results: Iterable[TestExecutionResult]) -> dict:
             "assertions_evaluated": evaluated,
             "counts": counts,
             "pass_rate": round(passed / evaluated, 4) if evaluated else None,
+            "contract_violations": contract_violations_count,
+            "sla_violations": sla_violations_count,
         },
         "by_endpoint": [
             {

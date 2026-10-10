@@ -19,3 +19,9 @@ class TestCase(BaseModel):
 
     expected_status: list[int] | None = None
     rationale: str | None = None
+
+    # Contract Validation & Advanced Assertions
+    expected_response_schema: dict[str, Any] | None = None
+    expected_headers: dict[str, str] = Field(default_factory=dict)
+    json_path_assertions: list[dict[str, Any]] = Field(default_factory=list)
+    max_duration_ms: float | None = None

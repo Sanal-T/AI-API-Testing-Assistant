@@ -451,6 +451,7 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
     _add_security_placeholders(endpoint, parameter_values)
     valid_payload = generate_valid_payload(schema)
     expected_success_statuses = _documented_success_statuses(endpoint)
+    expected_success_schema = _documented_success_schema(endpoint)
 
     test_cases = [
         TestCase(
@@ -463,6 +464,7 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
             headers=parameter_values["headers"],
             body=valid_payload if has_request_body_schema else None,
             expected_status=expected_success_statuses,
+            expected_response_schema=expected_success_schema,
         )
     ]
 
@@ -478,6 +480,7 @@ def generate_test_cases(endpoint: dict) -> list[TestCase]:
                 headers=parameter_values["headers"],
                 body=None,
                 expected_status=expected_success_statuses,
+                expected_response_schema=expected_success_schema,
             )
         )
 
@@ -648,3 +651,18 @@ def _documented_status_codes(endpoint: dict) -> set[int]:
         if 100 <= status <= 599:
             statuses.add(status)
     return statuses
+
+
+def _documented_success_schema(endpoint: dict) -> dict | None:
+    """Return the documented JSON schema for a 2xx response if present."""
+    schemas = endpoint.get("response_schemas", {})
+    if not isinstance(schemas, dict):
+        return None
+    for status_str, media_dict in schemas.items():
+        if str(status_str).startswith("2") and isinstance(media_dict, dict):
+            if "application/json" in media_dict:
+                return media_dict["application/json"]
+            for schema in media_dict.values():
+                if isinstance(schema, dict):
+                    return schema
+    return None

@@ -160,15 +160,16 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 3: Response Contract Validation & Advanced Assertions
-- [ ] **Full Response Body Schema Validation**:
-  - Validate actual JSON response bodies against the declared OpenAPI `response_schemas` using `jsonschema`.
-  - Flag contract drift when an API returns undocumented properties or incorrect data types despite a `200 OK` status.
-- [ ] **JSONPath & Deep Assertions**:
-  - Allow test cases to assert specific payload values (e.g. `$.status == "active"`, `$.data.id` is not null).
-- [ ] **Header & Content-Type Assertions**:
-  - Validate that returned headers match specifications (e.g. `Content-Type: application/json; charset=utf-8`, presence of `Cache-Control` or security headers).
-- [ ] **Latency & SLA Assertions**:
-  - Allow setting max response duration rules (e.g. `max_duration_ms: 500`). Fail or warn when endpoints violate SLAs.
+- [x] **Full Response Body Schema Validation**:
+  - Implemented [`app/executor/contract_validator.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/executor/contract_validator.py) using `jsonschema.Draft202012Validator`.
+  - Flags contract drift and schema violations even when an API returns an HTTP `200 OK` status.
+  - Automatically auto-links OpenAPI response schemas to generated positive test cases in [`app/generator/testcase_generator.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/generator/testcase_generator.py).
+- [x] **JSONPath & Deep Assertions**:
+  - Evaluates dot-notation JSONPath expressions with `equals`, `contains`, `exists`, and `min_count` rules.
+- [x] **Header & Content-Type Assertions**:
+  - Validates required response headers and case-insensitive values (e.g. `Content-Type: application/json`).
+- [x] **Latency & SLA Assertions**:
+  - Flags tests exceeding `max_duration_ms` thresholds with SLA breach warnings in the execution report and UI.
 
 ---
 

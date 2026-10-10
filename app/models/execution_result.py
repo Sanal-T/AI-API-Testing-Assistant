@@ -30,3 +30,10 @@ class TestExecutionResult(BaseModel):
     error_kind: ExecutionErrorKind | None = None
     error: str | None = None
     response_truncated: bool = False
+
+    # Contract Validation & Advanced Assertions Observations
+    schema_validation_passed: bool | None = None
+    schema_validation_errors: list[str] = Field(default_factory=list)
+    header_validation_errors: list[str] = Field(default_factory=list)
+    assertion_errors: list[str] = Field(default_factory=list)
+    sla_exceeded: bool = False

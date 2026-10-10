@@ -20,6 +20,7 @@ from app.constants import (
     MUTATING_METHODS,
     SENSITIVE_RESPONSE_HEADERS,
 )
+from app.executor.contract_validator import validate_response_contract
 from app.models.test_case import TestCase
 
 _MUTATING_METHODS = MUTATING_METHODS
@@ -105,22 +106,50 @@ def execute_test_case(
         status = response.status
         response_headers = _safe_response_headers(response.headers)
 
-    expected = test_case.expected_status
-    outcome = (
-        ExecutionOutcome.UNVERIFIED
-        if expected is None
-        else ExecutionOutcome.PASSED
-        if status in expected
-        else ExecutionOutcome.FAILED
+    duration_ms = (perf_counter() - started) * 1000
+    response_body_text = response_bytes.decode("utf-8", errors="replace")
+
+    contract_result = validate_response_contract(
+        test_case=test_case,
+        status_code=status,
+        response_headers=response_headers,
+        response_body_str=response_body_text,
+        duration_ms=duration_ms,
     )
+
+    expected = test_case.expected_status
+    status_passed = expected is not None and status in expected
+    status_unverified = expected is None
+
+    if not status_unverified and not status_passed:
+        outcome = ExecutionOutcome.FAILED
+        error_msg = f"Expected status {expected}, but received {status}."
+        if contract_result.all_errors:
+            error_msg += f" {'; '.join(contract_result.all_errors)}"
+    elif not contract_result.is_valid:
+        outcome = ExecutionOutcome.FAILED
+        error_msg = "; ".join(contract_result.all_errors)
+    elif status_unverified:
+        outcome = ExecutionOutcome.UNVERIFIED
+        error_msg = None
+    else:
+        outcome = ExecutionOutcome.PASSED
+        error_msg = None
+
     return TestExecutionResult(
         test_case=test_case,
         outcome=outcome,
         actual_status=status,
         response_headers=response_headers,
-        response_body=response_bytes.decode("utf-8", errors="replace"),
-        duration_ms=(perf_counter() - started) * 1000,
+        response_body=response_body_text,
+        duration_ms=duration_ms,
         response_truncated=truncated,
+        error=error_msg,
+        schema_validation_passed=contract_result.schema_passed,
+        schema_validation_errors=contract_result.schema_errors,
+        header_validation_errors=contract_result.header_errors,
+        assertion_errors=contract_result.assertion_errors,
+        sla_exceeded=contract_result.sla_exceeded,
     )
 
 
