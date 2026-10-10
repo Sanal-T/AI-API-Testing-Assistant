@@ -19,6 +19,7 @@ from app.report.summary import build_execution_report
 router = APIRouter()
 _MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 _SUPPORTED_METHODS = {"GET", "HEAD", "OPTIONS", *_MUTATING_METHODS}
+_BLOCKED_HEADERS = {"host", "content-length", "transfer-encoding"}
 
 
 @router.post("/run")
@@ -34,6 +35,26 @@ def run_tests(request: TestRunRequest) -> dict:
 
     results = []
     for test_case in request.test_cases:
+        headers = {**test_case.headers, **request.request_headers}
+        excluded_headers = {name.lower() for name in test_case.request_header_exclusions}
+        for name in list(headers):
+            if name.lower() in excluded_headers:
+                if name in test_case.headers:
+                    headers[name] = test_case.headers[name]
+                else:
+                    headers.pop(name)
+
+        query_params = {**test_case.query_params, **request.request_query_params}
+        for name in test_case.request_query_exclusions:
+            if name in test_case.query_params:
+                query_params[name] = test_case.query_params[name]
+            else:
+                query_params.pop(name, None)
+
+        test_case = test_case.model_copy(update={
+            "headers": headers,
+            "query_params": query_params,
+        })
         try:
             result = execute_test_case(
                 test_case,
@@ -71,6 +92,20 @@ def run_tests(request: TestRunRequest) -> dict:
 
 
 def _validate_run_request(request: TestRunRequest) -> None:
+    if len(request.request_headers) > 50:
+        raise HTTPException(status_code=400, detail="No more than 50 request headers may be supplied.")
+    for name, value in request.request_headers.items():
+        if name.lower() in _BLOCKED_HEADERS:
+            raise HTTPException(status_code=400, detail=f"The {name} header is controlled by the executor.")
+        if any(character in name or character in value for character in ("\r", "\n")):
+            raise HTTPException(status_code=400, detail="Request headers cannot contain line breaks.")
+        if len(name) > 256 or len(value) > 8192:
+            raise HTTPException(status_code=400, detail="A request header exceeds the allowed size.")
+    if len(request.request_query_params) > 50:
+        raise HTTPException(status_code=400, detail="No more than 50 request query parameters may be supplied.")
+    if any(len(name) > 256 or len(value) > 8192 for name, value in request.request_query_params.items()):
+        raise HTTPException(status_code=400, detail="A request query parameter exceeds the allowed size.")
+
     parsed = urlsplit(request.base_url)
     if (
         parsed.scheme.lower() not in {"http", "https"}

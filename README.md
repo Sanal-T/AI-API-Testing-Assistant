@@ -11,11 +11,11 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/docs` to use the API documentation. `POST /upload` accepts YAML or JSON OpenAPI files up to 5 MiB. It validates the document, extracts endpoints, and returns generated test cases. Uploading a specification does not execute requests.
+Open `http://127.0.0.1:8000/` for the browser workflow or `http://127.0.0.1:8000/docs` for the API documentation. The UI uploads YAML or JSON OpenAPI files up to 5 MiB, lets you review and select generated cases, and shows the resulting report. Uploading a specification does not execute requests.
 
 ## Safe execution
 
-`POST /run` accepts selected test cases returned by `/upload`, plus an explicit `base_url` and `allowed_hosts`. It runs at most 100 cases per request. Private or local targets and mutating methods require separate opt-ins; keep those disabled except for an authorized test environment. The executor does not use OpenAPI server URLs as an implicit target.
+`POST /run` accepts selected test cases returned by `/upload`, plus an explicit `base_url` and `allowed_hosts`. It runs at most 100 cases per request. The UI supports caller-supplied request headers and query parameters for API authentication; these values are never included in reports or AI input. Private or local targets and mutating methods require separate opt-ins; keep those disabled except for an authorized test environment. The executor does not use OpenAPI server URLs as an implicit target.
 
 ```python
 import json
