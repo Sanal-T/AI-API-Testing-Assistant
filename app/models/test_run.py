@@ -15,3 +15,5 @@ class TestRunRequest(BaseModel):
     allow_private_network: bool = False
     allow_mutating_methods: bool = False
     analyze_failures: bool = False
+    ai_provider: str | None = None
+    ai_model: str | None = None

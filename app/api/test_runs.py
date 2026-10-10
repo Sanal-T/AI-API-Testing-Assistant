@@ -36,9 +36,13 @@ def run_tests(request: TestRunRequest) -> dict:
     provider = None
     if request.analyze_failures:
         try:
-            provider = OpenAIResponsesProvider.from_environment()
-        except ValueError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
+            from app.ai.providers import get_llm_provider
+            provider = get_llm_provider(provider_name=request.ai_provider, model=request.ai_model)
+        except ValueError:
+            try:
+                provider = OpenAIResponsesProvider.from_environment()
+            except ValueError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     results = []
     for test_case in request.test_cases:

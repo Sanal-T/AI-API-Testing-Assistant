@@ -2,9 +2,9 @@ import logging
 
 from fastapi import APIRouter, HTTPException
 
+from app.ai.providers import get_llm_provider
 from app.generator.ai_generator import (
     AIGenerateRequest,
-    OpenAITestGeneratorProvider,
     generate_ai_test_cases,
 )
 
@@ -15,17 +15,17 @@ router = APIRouter()
 
 @router.post("/generate/ai")
 def generate_custom_ai_tests(request: AIGenerateRequest) -> dict:
-    """Generate on-demand AI test cases tailored to an endpoint using LLM synthesis."""
+    """Generate on-demand AI test cases tailored to an endpoint using multi-model LLMs."""
     if not request.endpoint or not isinstance(request.endpoint, dict):
         raise HTTPException(status_code=400, detail="A valid endpoint definition is required.")
 
     try:
-        provider = OpenAITestGeneratorProvider.from_environment()
+        provider = get_llm_provider(provider_name=request.provider, model=request.model)
     except ValueError as exc:
         logger.warning("AI test generation requested but provider is not configured: %s", exc)
         raise HTTPException(
             status_code=503,
-            detail=f"AI generation unavailable: {exc}. Please configure OPENAI_API_KEY in environment.",
+            detail=f"AI generation unavailable: {exc}. Please configure the relevant API key in your environment.",
         ) from exc
 
     try:

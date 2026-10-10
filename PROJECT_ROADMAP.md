@@ -186,13 +186,16 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 5: Multi-Model & Local LLM Support
-- [ ] **Provider Abstraction Layer**:
-  - Refactor [`app/analysis/failure_analyzer.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/analysis/failure_analyzer.py) to support multiple AI providers behind an `AnalysisProvider` interface:
-    - **Google Gemini** (Gemini 2.0 Flash / Pro via official SDK).
-    - **Anthropic Claude** (Claude 3.5 Sonnet).
-    - **Local Models via Ollama / vLLM / LiteLLM** (allows running entirely on-premises for enterprise privacy).
-- [ ] **Configurable Model Settings**:
-  - Allow users to select the provider, model name, and temperature directly from the UI or environment.
+- [x] **Provider Abstraction Layer**:
+  - Implemented [`app/ai/providers.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/ai/providers.py) unifying AI completion across:
+    - **Google Gemini** (Gemini 2.0 Flash / Pro via Generative Language API).
+    - **Anthropic Claude** (Claude 3.5 Sonnet / Haiku via Messages API).
+    - **Local / On-Premise LLMs** (Ollama, vLLM, LocalAI) without cloud keys or external internet connectivity.
+    - **OpenAI** (GPT-4o, GPT-4o-mini).
+- [x] **Configurable Model Settings**:
+  - Created provider factory `get_llm_provider()` with environment auto-detection (`AI_PROVIDER`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `LOCAL_LLM_URL`).
+  - Added multi-model support to [`app/analysis/failure_analyzer.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/analysis/failure_analyzer.py) and [`app/generator/ai_generator.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/generator/ai_generator.py).
+  - Documented configurations in [`.env.example`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/.env.example).
 
 ---
 
