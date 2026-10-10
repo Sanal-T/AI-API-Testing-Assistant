@@ -1,3 +1,5 @@
+from collections.abc import Generator, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import ipaddress
 import json
 import re
@@ -151,6 +153,144 @@ def execute_test_case(
         assertion_errors=contract_result.assertion_errors,
         sla_exceeded=contract_result.sla_exceeded,
     )
+
+
+def _safe_execute_test_case(
+    test_case: TestCase,
+    base_url: str,
+    *,
+    allowed_hosts: set[str],
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    allow_private_network: bool = False,
+    allow_mutating_methods: bool = False,
+    executor_fn: Any = None,
+) -> TestExecutionResult:
+    fn = executor_fn or execute_test_case
+    try:
+        return fn(
+            test_case,
+            base_url,
+            allowed_hosts=allowed_hosts,
+            timeout=timeout,
+            allow_private_network=allow_private_network,
+            allow_mutating_methods=allow_mutating_methods,
+        )
+    except ValueError as exc:
+        return TestExecutionResult(
+            test_case=test_case,
+            outcome=ExecutionOutcome.ERROR,
+            duration_ms=0,
+            error="Request was not sent because target validation failed.",
+        )
+    except Exception as exc:
+        return TestExecutionResult(
+            test_case=test_case,
+            outcome=ExecutionOutcome.ERROR,
+            duration_ms=0,
+            error=f"Execution error: {exc}",
+        )
+
+
+def execute_batch(
+    test_cases: Sequence[TestCase],
+    base_url: str,
+    *,
+    allowed_hosts: set[str],
+    concurrency: int = 5,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    allow_private_network: bool = False,
+    allow_mutating_methods: bool = False,
+    executor_fn: Any = None,
+) -> list[TestExecutionResult]:
+    """Execute a batch of test cases concurrently while preserving input order."""
+    if not test_cases:
+        return []
+
+    if concurrency <= 1 or len(test_cases) == 1:
+        return [
+            _safe_execute_test_case(
+                tc,
+                base_url,
+                allowed_hosts=allowed_hosts,
+                timeout=timeout,
+                allow_private_network=allow_private_network,
+                allow_mutating_methods=allow_mutating_methods,
+                executor_fn=executor_fn,
+            )
+            for tc in test_cases
+        ]
+
+    max_workers = max(1, min(concurrency, len(test_cases)))
+    indexed_results: list[tuple[int, TestExecutionResult]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _safe_execute_test_case,
+                tc,
+                base_url,
+                allowed_hosts=allowed_hosts,
+                timeout=timeout,
+                allow_private_network=allow_private_network,
+                allow_mutating_methods=allow_mutating_methods,
+                executor_fn=executor_fn,
+            ): idx
+            for idx, tc in enumerate(test_cases)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            indexed_results.append((idx, future.result()))
+
+    indexed_results.sort(key=lambda item: item[0])
+    return [res for _, res in indexed_results]
+
+
+def execute_batch_stream(
+    test_cases: Sequence[TestCase],
+    base_url: str,
+    *,
+    allowed_hosts: set[str],
+    concurrency: int = 5,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    allow_private_network: bool = False,
+    allow_mutating_methods: bool = False,
+    executor_fn: Any = None,
+) -> Generator[tuple[int, TestExecutionResult], None, None]:
+    """Execute test cases concurrently and yield (index, result) as each finishes."""
+    if not test_cases:
+        return
+
+    if concurrency <= 1 or len(test_cases) == 1:
+        for idx, tc in enumerate(test_cases):
+            res = _safe_execute_test_case(
+                tc,
+                base_url,
+                allowed_hosts=allowed_hosts,
+                timeout=timeout,
+                allow_private_network=allow_private_network,
+                allow_mutating_methods=allow_mutating_methods,
+                executor_fn=executor_fn,
+            )
+            yield idx, res
+        return
+
+    max_workers = max(1, min(concurrency, len(test_cases)))
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                _safe_execute_test_case,
+                tc,
+                base_url,
+                allowed_hosts=allowed_hosts,
+                timeout=timeout,
+                allow_private_network=allow_private_network,
+                allow_mutating_methods=allow_mutating_methods,
+                executor_fn=executor_fn,
+            ): idx
+            for idx, tc in enumerate(test_cases)
+        }
+        for future in as_completed(futures):
+            idx = futures[future]
+            yield idx, future.result()
 
 
 def _build_request_url(

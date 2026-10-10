@@ -200,11 +200,14 @@ To elevate this project from a deterministic contract tester to a **complete, in
 ---
 
 ### Phase 6: Performance & Engine Modernization
-- [ ] **Asynchronous HTTP Client**:
-  - Replace blocking `urllib.request` in [`app/executor/http_executor.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/executor/http_executor.py) with `httpx.AsyncClient`.
-  - Implement concurrent batch execution with a configurable concurrency limit (e.g. 5–10 concurrent requests) to speed up test execution by 5–10x.
-- [ ] **Real-time Execution Streaming**:
-  - Stream test execution results live to the UI via Server-Sent Events (SSE) or WebSockets instead of waiting for the entire batch to complete.
+- [x] **Concurrent Batch Execution Engine**:
+  - Implemented `execute_batch` in [`app/executor/http_executor.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/executor/http_executor.py) using `concurrent.futures.ThreadPoolExecutor` with configurable concurrency (1 to 20 workers, default 5).
+  - Preserves input order while executing requests in parallel with full error containment.
+- [x] **Real-Time Execution Streaming (SSE)**:
+  - Added `execute_batch_stream` generator yielding test results as soon as each individual worker completes.
+  - Added `POST /run/stream` in [`app/api/test_runs.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/api/test_runs.py) utilizing Starlette's `StreamingResponse` emitting `data: {"type": "progress", ...}` and final `data: {"type": "complete", ...}` events.
+- [x] **UI Live Streaming Progress**:
+  - Updated [`app/ui/index.html`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/ui/index.html) with a concurrency worker pool selector and live SSE progress meter showing real-time percentages and test-by-test completion badges.
 
 ---
 

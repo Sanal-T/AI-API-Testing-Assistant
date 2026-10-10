@@ -12,6 +12,7 @@ class TestRunRequest(BaseModel):
     request_headers: dict[str, str] = Field(default_factory=dict)
     request_query_params: dict[str, str] = Field(default_factory=dict)
     timeout: float = Field(default=10.0, gt=0, le=60)
+    concurrency: int = Field(default=5, ge=1, le=20)
     allow_private_network: bool = False
     allow_mutating_methods: bool = False
     analyze_failures: bool = False

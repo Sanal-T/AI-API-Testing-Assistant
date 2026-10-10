@@ -47,6 +47,7 @@
           <label class="field" style="margin-top:14px"><span>Request headers (JSON object, optional)</span><textarea id="requestHeaders" placeholder='{"Authorization":"Bearer your-token"}'></textarea></label>
           <label class="field"><span>Request query parameters (JSON object, optional)</span><textarea id="requestQuery" placeholder='{"api_key":"your-key"}'></textarea></label>
           <label class="field"><span>Timeout in seconds</span><input id="timeout" type="number" min="0.1" max="60" value="10" step="0.5"></label>
+          <label class="field"><span>Concurrency (parallel workers)</span><input id="concurrency" type="number" min="1" max="20" value="5" step="1"></label>
           <label class="check"><input id="allowPrivate" type="checkbox"><span>Allow local/private network targets (only for an authorized test environment)</span></label>
           <label class="check"><input id="allowMutating" type="checkbox" checked><span>Allow POST, PUT, PATCH, and DELETE requests</span></label>
           <label class="check"><input id="analyze" type="checkbox"><span>Ask AI to analyze failures (sends status and test metadata, not bodies or credentials)</span></label>
@@ -214,14 +215,74 @@
     $("selectAll").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=true);updateSelection();});
     $("selectNone").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=false);updateSelection();});
     $("runButton").addEventListener("click",async()=>{
-      let requestHeaders={},requestQuery={}; try {const text=$("requestHeaders").value.trim();requestHeaders=text?JSON.parse(text):{};if(!requestHeaders||Array.isArray(requestHeaders)||typeof requestHeaders!=="object")throw new Error("Headers must be a JSON object.");const queryText=$("requestQuery").value.trim();requestQuery=queryText?JSON.parse(queryText):{};if(!requestQuery||Array.isArray(requestQuery)||typeof requestQuery!=="object")throw new Error("Query parameters must be a JSON object.");}
-      catch(error){setStatus("runStatus",`Invalid request credentials: ${error.message}`,"error");return;}
+      let requestHeaders={},requestQuery={};
+      try {
+        const text=$("requestHeaders").value.trim(); requestHeaders=text?JSON.parse(text):{};
+        if(!requestHeaders||Array.isArray(requestHeaders)||typeof requestHeaders!=="object") throw new Error("Headers must be a JSON object.");
+        const queryText=$("requestQuery").value.trim(); requestQuery=queryText?JSON.parse(queryText):{};
+        if(!requestQuery||Array.isArray(requestQuery)||typeof requestQuery!=="object") throw new Error("Query parameters must be a JSON object.");
+      } catch(error){ setStatus("runStatus",`Invalid request credentials: ${error.message}`,"error"); return; }
+      
       const selected=[...document.querySelectorAll(".case input:checked")].map(input=>cases[Number(input.dataset.case)]);
       const allowedHosts=$("allowedHosts").value.split(",").map(host=>host.trim()).filter(Boolean);
-      const payload={test_cases:selected,base_url:$("baseUrl").value.trim(),allowed_hosts:allowedHosts,request_headers:requestHeaders,request_query_params:requestQuery,timeout:Number($("timeout").value),allow_private_network:$("allowPrivate").checked,allow_mutating_methods:$("allowMutating").checked,analyze_failures:$("analyze").checked};
-      $("runButton").disabled=true;setStatus("runStatus","Executing selected tests…");
-      try {const response=await fetch("/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.detail||"Test run failed.");reportData=data;renderReport(data);setStatus("runStatus","Run complete.","ok");}
-      catch(error){setStatus("runStatus",error.message,"error");}finally{updateSelection();}
+      const concurrency=Number($("concurrency").value || 5);
+      const payload={
+        test_cases:selected,
+        base_url:$("baseUrl").value.trim(),
+        allowed_hosts:allowedHosts,
+        request_headers:requestHeaders,
+        request_query_params:requestQuery,
+        timeout:Number($("timeout").value),
+        concurrency:concurrency,
+        allow_private_network:$("allowPrivate").checked,
+        allow_mutating_methods:$("allowMutating").checked,
+        analyze_failures:$("analyze").checked
+      };
+
+      $("runButton").disabled=true;
+      setStatus("runStatus",`Executing ${selected.length} tests concurrently (${concurrency} workers)…`);
+
+      try {
+        const response=await fetch("/run/stream",{
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(payload)
+        });
+        if(!response.ok) {
+          const errData=await response.json();
+          throw new Error(errData.detail||"Test run failed.");
+        }
+        const reader=response.body.getReader();
+        const decoder=new TextDecoder("utf-8");
+        let buffer="";
+
+        while(true) {
+          const {done, value} = await reader.read();
+          if(done) break;
+          buffer += decoder.decode(value, {stream:true});
+          const chunks = buffer.split("\n\n");
+          buffer = chunks.pop();
+
+          for(const chunk of chunks) {
+            const trimmed = chunk.trim();
+            if(trimmed.startsWith("data:")) {
+              const eventData = JSON.parse(trimmed.slice(5).trim());
+              if(eventData.type === "progress") {
+                const pct = Math.round((eventData.completed / eventData.total) * 100);
+                setStatus("runStatus", `Executing: ${eventData.completed}/${eventData.total} (${pct}%) · ${safe(eventData.result.name)}`);
+              } else if(eventData.type === "complete") {
+                reportData = eventData;
+                renderReport(eventData);
+                setStatus("runStatus", `Run complete: ${eventData.report.summary.total_tests} tests executed.`, "ok");
+              }
+            }
+          }
+        }
+      } catch(error) {
+        setStatus("runStatus", error.message, "error");
+      } finally {
+        updateSelection();
+      }
     });
     function renderReport(data){
       const report=data.report, summary=report.summary;

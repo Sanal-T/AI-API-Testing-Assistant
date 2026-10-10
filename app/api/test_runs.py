@@ -1,8 +1,11 @@
+import json
 import logging
 import re
+from typing import Any
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from app.analysis.failure_analyzer import (
     OpenAIResponsesProvider,
@@ -13,11 +16,16 @@ from app.constants import (
     MUTATING_METHODS,
     SUPPORTED_METHODS,
 )
-from app.executor.http_executor import execute_test_case
+from app.executor.http_executor import (
+    execute_batch,
+    execute_batch_stream,
+    execute_test_case,
+)
 from app.models.execution_result import (
     ExecutionOutcome,
     TestExecutionResult,
 )
+from app.models.test_case import TestCase
 from app.models.test_run import TestRunRequest
 from app.report.summary import build_execution_report
 
@@ -29,78 +37,140 @@ _SUPPORTED_METHODS = SUPPORTED_METHODS
 _BLOCKED_HEADERS = BLOCKED_REQUEST_HEADERS
 
 
-@router.post("/run")
-def run_tests(request: TestRunRequest) -> dict:
-    """Execute a user-selected batch against an explicitly allowlisted target."""
-    _validate_run_request(request)
-    provider = None
-    if request.analyze_failures:
-        try:
-            from app.ai.providers import get_llm_provider
-            provider = get_llm_provider(provider_name=request.ai_provider, model=request.ai_model)
-        except ValueError:
-            try:
-                provider = OpenAIResponsesProvider.from_environment()
-            except ValueError as exc:
-                raise HTTPException(status_code=503, detail=str(exc)) from exc
-
-    results = []
-    for test_case in request.test_cases:
-        headers = {**test_case.headers, **request.request_headers}
-        excluded_headers = {name.lower() for name in test_case.request_header_exclusions}
-        for name in list(headers):
-            if name.lower() in excluded_headers:
-                if name in test_case.headers:
-                    headers[name] = test_case.headers[name]
-                else:
-                    headers.pop(name)
-
-        query_params = {**test_case.query_params, **request.request_query_params}
-        for name in test_case.request_query_exclusions:
-            if name in test_case.query_params:
-                query_params[name] = test_case.query_params[name]
+def _prepare_test_case(test_case: TestCase, request: TestRunRequest) -> TestCase:
+    headers = {**test_case.headers, **request.request_headers}
+    excluded_headers = {name.lower() for name in test_case.request_header_exclusions}
+    for name in list(headers):
+        if name.lower() in excluded_headers:
+            if name in test_case.headers:
+                headers[name] = test_case.headers[name]
             else:
-                query_params.pop(name, None)
+                headers.pop(name)
 
-        test_case = test_case.model_copy(update={
-            "headers": headers,
-            "query_params": query_params,
-        })
+    query_params = {**test_case.query_params, **request.request_query_params}
+    for name in test_case.request_query_exclusions:
+        if name in test_case.query_params:
+            query_params[name] = test_case.query_params[name]
+        else:
+            query_params.pop(name, None)
+
+    return test_case.model_copy(update={
+        "headers": headers,
+        "query_params": query_params,
+    })
+
+
+def _resolve_provider(request: TestRunRequest):
+    if not request.analyze_failures:
+        return None
+    try:
+        from app.ai.providers import get_llm_provider
+        return get_llm_provider(provider_name=request.ai_provider, model=request.ai_model)
+    except ValueError:
         try:
-            result = execute_test_case(
-                test_case,
-                request.base_url,
-                allowed_hosts=request.allowed_hosts,
-                timeout=request.timeout,
-                allow_private_network=request.allow_private_network,
-                allow_mutating_methods=request.allow_mutating_methods,
-            )
-        except ValueError:
-            # Keep earlier observations if a later test is rejected before send.
-            result = TestExecutionResult(
-                test_case=test_case,
-                outcome=ExecutionOutcome.ERROR,
-                duration_ms=0,
-                error="Request was not sent because target validation failed.",
-            )
-        results.append(result)
+            return OpenAIResponsesProvider.from_environment()
+        except ValueError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
 
-    response = {
-        "report": build_execution_report(results),
-        "analysis": None,
-        "analysis_error": None,
-    }
+
+def _run_ai_analysis(results: list[TestExecutionResult], provider: Any) -> tuple[dict | None, str | None]:
     if provider is not None and any(
         result.outcome in {ExecutionOutcome.FAILED, ExecutionOutcome.ERROR}
         for result in results
     ):
         try:
-            response["analysis"] = analyze_failures(results, provider=provider).model_dump(mode="json")
+            return analyze_failures(results, provider=provider).model_dump(mode="json"), None
         except (RuntimeError, ValueError) as exc:
             logger.warning("AI failure analysis failed: %s", exc, exc_info=True)
-            # Preserve the execution report even when the optional provider is unavailable.
-            response["analysis_error"] = "Execution completed, but AI analysis was unavailable."
-    return response
+            return None, "Execution completed, but AI analysis was unavailable."
+    return None, None
+
+
+@router.post("/run")
+def run_tests(request: TestRunRequest) -> dict:
+    """Execute a user-selected batch against an explicitly allowlisted target."""
+    _validate_run_request(request)
+    provider = _resolve_provider(request)
+
+    prepared_cases = [_prepare_test_case(tc, request) for tc in request.test_cases]
+    results = execute_batch(
+        prepared_cases,
+        request.base_url,
+        allowed_hosts=request.allowed_hosts,
+        concurrency=request.concurrency,
+        timeout=request.timeout,
+        allow_private_network=request.allow_private_network,
+        allow_mutating_methods=request.allow_mutating_methods,
+        executor_fn=execute_test_case,
+    )
+
+    analysis, analysis_error = _run_ai_analysis(results, provider)
+    return {
+        "report": build_execution_report(results),
+        "analysis": analysis,
+        "analysis_error": analysis_error,
+    }
+
+
+@router.post("/run/stream")
+def run_tests_stream(request: TestRunRequest):
+    """Execute a user-selected batch with real-time Server-Sent Events (SSE) streaming."""
+    _validate_run_request(request)
+    provider = _resolve_provider(request)
+
+    prepared_cases = [_prepare_test_case(tc, request) for tc in request.test_cases]
+
+    def event_stream():
+        completed_results: list[tuple[int, TestExecutionResult]] = []
+        total = len(prepared_cases)
+
+        for idx, result in execute_batch_stream(
+            prepared_cases,
+            request.base_url,
+            allowed_hosts=request.allowed_hosts,
+            concurrency=request.concurrency,
+            timeout=request.timeout,
+            allow_private_network=request.allow_private_network,
+            allow_mutating_methods=request.allow_mutating_methods,
+            executor_fn=execute_test_case,
+        ):
+            completed_results.append((idx, result))
+            event_payload = {
+                "type": "progress",
+                "index": idx,
+                "completed": len(completed_results),
+                "total": total,
+                "result": {
+                    "name": result.test_case.name,
+                    "method": result.test_case.method,
+                    "path": result.test_case.path,
+                    "outcome": result.outcome.value,
+                    "actual_status": result.actual_status,
+                    "duration_ms": result.duration_ms,
+                    "error": result.error,
+                },
+            }
+            yield f"data: {json.dumps(event_payload)}\n\n"
+
+        sorted_results = [r for _, r in sorted(completed_results, key=lambda item: item[0])]
+        analysis, analysis_error = _run_ai_analysis(sorted_results, provider)
+        complete_payload = {
+            "type": "complete",
+            "report": build_execution_report(sorted_results),
+            "analysis": analysis,
+            "analysis_error": analysis_error,
+        }
+        yield f"data: {json.dumps(complete_payload)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 def _validate_run_request(request: TestRunRequest) -> None:
