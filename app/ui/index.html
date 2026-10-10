@@ -1,115 +1,653 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>API Test Assistant</title>
   <style>
-    :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#182536;background:#f4f7fb;font-synthesis:none}
-    *{box-sizing:border-box}body{margin:0}header{background:#11243a;color:white;padding:22px max(24px,calc((100% - 1120px)/2));display:flex;align-items:center;justify-content:space-between}
-    header strong{font-size:18px;letter-spacing:.2px}header span{font-size:13px;color:#b9c8d9}
-    main{max-width:1120px;margin:28px auto;padding:0 20px}.intro{margin-bottom:22px}.intro h1{font-size:27px;margin:0 0 7px}.intro p{margin:0;color:#586a7d}
-    .layout{display:grid;grid-template-columns:340px 1fr;gap:18px;align-items:start}.card{background:white;border:1px solid #dce4ed;border-radius:12px;padding:20px;box-shadow:0 3px 14px #1b34510b;margin-bottom:16px}
-    h2{font-size:16px;margin:0 0 16px}.field{display:block;margin:0 0 14px}.field>span{display:block;font-size:12px;font-weight:650;margin-bottom:6px;color:#42556a}
-    input[type=text],input[type=number],input[type=file],textarea{width:100%;font:inherit;font-size:13px;padding:10px;border:1px solid #cbd5e1;border-radius:7px;background:#fff;color:#172638}
-    textarea{min-height:70px;resize:vertical;font-family:Consolas,monospace}.hint{font-size:11px;color:#718197;margin-top:5px;line-height:1.4}
-    .check{display:flex;gap:9px;align-items:flex-start;margin:12px 0;font-size:13px;line-height:1.4}.check input{margin-top:2px}.button{border:0;border-radius:7px;padding:10px 14px;background:#1769aa;color:white;font-size:13px;font-weight:650;cursor:pointer}.button:hover{background:#12578e}.button.secondary{background:#e8f0f8;color:#24445f}.button:disabled{opacity:.5;cursor:wait}
-    .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.status{font-size:12px;color:#56697c;min-height:18px;margin-top:10px}.status.error{color:#a12626}.status.ok{color:#247047}
-    .hidden{display:none!important}.endpoint{border-top:1px solid #e7edf3;padding:13px 0}.endpoint:first-child{border-top:0}.endpoint-title{font-weight:700;font-size:13px}.endpoint-title small{color:#1769aa;margin-left:6px}.case{display:flex;gap:9px;padding:8px 0 2px 10px;font-size:12px;color:#40546a}.case input{margin:0}.case-name{font-weight:600;color:#26394e}.case-meta{color:#718197;margin-top:3px}
-    .metric-grid{display:grid;grid-template-columns:repeat(6,minmax(80px,1fr));gap:9px;margin-bottom:17px}.metric{border:1px solid #e1e8ef;border-radius:8px;padding:11px}.metric strong{display:block;font-size:20px}.metric span{font-size:11px;color:#687b8f;text-transform:uppercase;letter-spacing:.04em}
-    .result-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 0;border-top:1px solid #e7edf3;font-size:12px}.badge{font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.04em}.passed{color:#18804a}.failed,.error{color:#b42318}.unverified{color:#9a6700}.skipped{color:#69788a}.muted{color:#728197}.analysis{background:#f2f7fc;border-radius:8px;padding:13px;margin-top:12px;font-size:13px;line-height:1.5}.analysis h3{font-size:13px;margin:0 0 5px}.analysis ul{margin:4px 0 11px;padding-left:20px}
-    .ai-box{background:#f0f7ff;border:1px solid #c7e0f9;border-radius:8px;padding:12px;margin:12px 0}
-    .ai-box strong{display:block;font-size:12px;color:#13598f;margin-bottom:6px}
-    .wf-card{border:1px solid #dbe6f1;border-radius:8px;padding:12px;margin-bottom:12px;background:#fbfcfe}
-    .wf-step{padding:6px 0;border-bottom:1px dashed #e1e9f0;font-size:12px}
-    .wf-step:last-child{border-bottom:0}
-    @media(max-width:800px){.layout{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(3,1fr)}header{padding:18px 20px}}
+    :root {
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      
+      /* Light theme tokens */
+      --bg: #f8fafc;
+      --header-bg: #0f172a;
+      --header-text: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --input-bg: #ffffff;
+      --input-border: #cbd5e1;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --secondary-bg: #f1f5f9;
+      --secondary-text: #334155;
+      --secondary-hover: #e2e8f0;
+      --badge-pass: #16a34a;
+      --badge-fail: #dc2626;
+      --badge-warn: #d97706;
+      --accent-card: #f0fdf4;
+      --accent-border: #bbf7d0;
+      --modal-overlay: rgba(15, 23, 42, 0.6);
+      --code-bg: #f1f5f9;
+      --shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08);
+    }
+
+    [data-theme="dark"] {
+      --bg: #090d16;
+      --header-bg: #030712;
+      --header-text: #f8fafc;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --input-bg: #1e293b;
+      --input-border: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --secondary-bg: #1e293b;
+      --secondary-text: #e2e8f0;
+      --secondary-hover: #334155;
+      --badge-pass: #22c55e;
+      --badge-fail: #ef4444;
+      --badge-warn: #f59e0b;
+      --accent-card: #064e3b20;
+      --accent-border: #05966940;
+      --modal-overlay: rgba(0, 0, 0, 0.75);
+      --code-bg: #0f172a;
+      --shadow: 0 8px 30px -4px rgba(0, 0, 0, 0.5);
+    }
+
+    * { box-sizing: border-box; transition: background-color 0.2s ease, border-color 0.2s ease; }
+    body { margin: 0; font-family: var(--font); color: var(--text); background: var(--bg); line-height: 1.5; }
+    
+    header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 16px max(24px, calc((100% - 1180px)/2));
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand strong { font-size: 18px; letter-spacing: -0.3px; display: flex; align-items: center; gap: 6px; }
+    .brand span { font-size: 12px; color: #94a3b8; background: #1e293b; padding: 2px 8px; border-radius: 12px; }
+    .theme-toggle {
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .theme-toggle:hover { background: #334155; }
+
+    main { max-width: 1180px; margin: 24px auto; padding: 0 20px; }
+    .intro { margin-bottom: 20px; }
+    .intro h1 { font-size: 24px; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.4px; }
+    .intro p { margin: 0; color: var(--text-muted); font-size: 14px; }
+
+    .layout { display: grid; grid-template-columns: 360px 1fr; gap: 20px; align-items: start; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 20px;
+    }
+    h2 { font-size: 15px; font-weight: 650; margin: 0 0 16px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    
+    .field { display: block; margin: 0 0 14px; }
+    .field > span { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--text-muted); }
+    input[type=text], input[type=number], input[type=file], textarea, select {
+      width: 100%;
+      font-family: inherit;
+      font-size: 13px;
+      padding: 9px 12px;
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      background: var(--input-bg);
+      color: var(--text);
+      outline: none;
+    }
+    input[type=text]:focus, input[type=number]:focus, textarea:focus { border-color: var(--primary); }
+    textarea { min-height: 65px; resize: vertical; font-family: var(--font-mono); font-size: 12px; }
+    .hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; line-height: 1.4; }
+
+    .check { display: flex; gap: 9px; align-items: flex-start; margin: 10px 0; font-size: 12px; line-height: 1.4; cursor: pointer; color: var(--text); }
+    .check input { margin-top: 2px; accent-color: var(--primary); }
+
+    .button {
+      border: 0;
+      border-radius: 8px;
+      padding: 9px 14px;
+      background: var(--primary);
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+    .button:hover { background: var(--primary-hover); }
+    .button.secondary { background: var(--secondary-bg); color: var(--secondary-text); border: 1px solid var(--card-border); }
+    .button.secondary:hover { background: var(--secondary-hover); }
+    .button.sm { padding: 5px 9px; font-size: 11px; border-radius: 6px; }
+    .button:disabled { opacity: .5; cursor: wait; }
+
+    .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .status { font-size: 12px; color: var(--text-muted); min-height: 18px; margin-top: 10px; word-break: break-word; }
+    .status.error { color: var(--badge-fail); font-weight: 600; }
+    .status.ok { color: var(--badge-pass); font-weight: 600; }
+    .hidden { display: none !important; }
+
+    /* Progress bar */
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: var(--secondary-bg);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.2s ease;
+    }
+
+    /* Filter pills */
+    .filter-bar { display: flex; gap: 8px; align-items: center; margin: 12px 0; flex-wrap: wrap; }
+    .filter-pill {
+      background: var(--secondary-bg);
+      color: var(--secondary-text);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .filter-pill.active { background: var(--primary); color: white; border-color: var(--primary); }
+    .search-input { flex: 1; min-width: 180px; }
+
+    /* Endpoint & test case item */
+    .endpoint { border-top: 1px solid var(--card-border); padding: 12px 0; }
+    .endpoint:first-child { border-top: 0; }
+    .endpoint-title { font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: space-between; }
+    .method-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      margin-right: 6px;
+    }
+    .method-get { background: #0284c725; color: #38bdf8; }
+    .method-post { background: #16a34a25; color: #4ade80; }
+    .method-put { background: #d9770625; color: #fbbf24; }
+    .method-delete { background: #dc262625; color: #f87171; }
+    .method-patch { background: #9333ea25; color: #c084fc; }
+
+    .case {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin: 4px 0;
+      font-size: 12px;
+      background: var(--secondary-bg);
+    }
+    .case:hover { background: var(--secondary-hover); }
+    .case-info { display: flex; gap: 8px; align-items: center; overflow: hidden; }
+    .case-name { font-weight: 600; color: var(--text); }
+    .case-meta { color: var(--text-muted); font-size: 11px; }
+
+    /* Report Scorecard */
+    .metric-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 18px; }
+    .metric { border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; background: var(--secondary-bg); text-align: center; }
+    .metric strong { display: block; font-size: 22px; font-weight: 700; color: var(--text); }
+    .metric span { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+
+    /* Inspector & Results */
+    .result-row {
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: var(--card-bg);
+      overflow: hidden;
+    }
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .result-header:hover { background: var(--secondary-bg); }
+    .result-body {
+      padding: 14px;
+      border-top: 1px solid var(--card-border);
+      background: var(--code-bg);
+      font-size: 12px;
+      display: none;
+    }
+    .result-body.open { display: block; }
+    .badge { font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; padding: 3px 8px; border-radius: 12px; }
+    .badge.passed { background: #16a34a25; color: var(--badge-pass); }
+    .badge.failed, .badge.error { background: #dc262625; color: var(--badge-fail); }
+    .badge.unverified { background: #d9770625; color: var(--badge-warn); }
+
+    .analysis { background: var(--secondary-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 14px; margin-top: 14px; font-size: 13px; }
+    .analysis h3 { font-size: 13px; margin: 0 0 6px; }
+    .analysis ul { margin: 4px 0 10px; padding-left: 20px; }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: var(--modal-overlay);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 85vh;
+      overflow-y: auto;
+      padding: 24px;
+      box-shadow: var(--shadow);
+    }
+    .modal h3 { margin: 0 0 14px; font-size: 16px; }
+
+    /* AI box & workflows */
+    .ai-box { background: var(--secondary-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin: 12px 0; }
+    .ai-box strong { display: block; font-size: 12px; color: var(--primary); margin-bottom: 6px; }
+    .wf-card { border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; background: var(--secondary-bg); }
+    .wf-step { padding: 6px 0; border-bottom: 1px dashed var(--card-border); font-size: 12px; }
+    .wf-step:last-child { border-bottom: 0; }
+
+    @media(max-width: 860px) {
+      .layout { grid-template-columns: 1fr; }
+      .metric-grid { grid-template-columns: repeat(3, 1fr); }
+    }
   </style>
 </head>
 <body>
-  <header><strong>◈ API Test Assistant</strong><span>Deterministic tests · AI Edge Cases · Stateful Workflows · Safe by default</span></header>
+  <header>
+    <div class="brand">
+      <strong>◈ API Test Assistant</strong>
+      <span>v2.0 Modern Engine</span>
+    </div>
+    <div class="actions">
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle Dark Mode">🌙 Dark Mode</button>
+    </div>
+  </header>
+
   <main>
-    <div class="intro"><h1>Test an API from its OpenAPI spec</h1><p>Upload a contract, generate deterministic & AI edge cases, run stateful workflows, and validate responses.</p></div>
+    <div class="intro">
+      <h1>Contract-Driven & Semantic AI API Testing</h1>
+      <p>Automated OpenAPI fuzzer, boundary attacks, stateful CRUD chaining, contract schema validation, and multi-format CI/CD exports.</p>
+    </div>
+
     <div class="layout">
+      <!-- Left Configuration Column -->
       <section>
         <div class="card">
-          <h2>1. Upload specification</h2>
-          <label class="field"><span>OpenAPI YAML or JSON (max 5 MiB)</span><input id="specFile" type="file" accept=".yaml,.yml,.json"></label>
-          <button class="button" id="uploadButton">Parse and generate tests</button>
+          <h2>1. Specification Ingestion</h2>
+          <label class="field">
+            <span>Upload OpenAPI Document (YAML or JSON, max 5 MiB)</span>
+            <input id="specFile" type="file" accept=".yaml,.yml,.json">
+          </label>
+          <button class="button" id="uploadButton">Parse & Synthesize Tests</button>
           <div id="uploadStatus" class="status" role="status"></div>
         </div>
+
         <div id="targetCard" class="card hidden">
-          <h2>2. Configure target</h2>
-          <label class="field"><span>Target base URL</span><input id="baseUrl" type="text" placeholder="https://api.example.com"></label>
-          <label class="field"><span>Allowed hostnames</span><input id="allowedHosts" type="text" placeholder="api.example.com"></label>
-          <button class="button secondary" id="addBaseHost" type="button" style="margin-top:-8px;margin-bottom:12px">Add base URL host to allowlist</button>
-          <div class="hint">The base URL host must be listed explicitly. OpenAPI server URLs are never used as an execution target.</div>
-          <label class="field" style="margin-top:14px"><span>Request headers (JSON object, optional)</span><textarea id="requestHeaders" placeholder='{"Authorization":"Bearer your-token"}'></textarea></label>
-          <label class="field"><span>Request query parameters (JSON object, optional)</span><textarea id="requestQuery" placeholder='{"api_key":"your-key"}'></textarea></label>
-          <label class="field"><span>Timeout in seconds</span><input id="timeout" type="number" min="0.1" max="60" value="10" step="0.5"></label>
-          <label class="field"><span>Concurrency (parallel workers)</span><input id="concurrency" type="number" min="1" max="20" value="5" step="1"></label>
-          <label class="check"><input id="allowPrivate" type="checkbox"><span>Allow local/private network targets (only for an authorized test environment)</span></label>
-          <label class="check"><input id="allowMutating" type="checkbox" checked><span>Allow POST, PUT, PATCH, and DELETE requests</span></label>
-          <label class="check"><input id="analyze" type="checkbox"><span>Ask AI to analyze failures (sends status and test metadata, not bodies or credentials)</span></label>
-          <button class="button" id="runButton" disabled>Run selected tests</button>
+          <h2>2. Execution Target & Guardrails</h2>
+          <label class="field">
+            <span>Target Base URL</span>
+            <input id="baseUrl" type="text" placeholder="https://api.example.com">
+          </label>
+          <label class="field">
+            <span>Explicit Allowed Hosts</span>
+            <input id="allowedHosts" type="text" placeholder="api.example.com">
+          </label>
+          <button class="button secondary sm" id="addBaseHost" type="button" style="margin-top:-6px;margin-bottom:12px">Add target host to allowlist</button>
+          
+          <label class="field">
+            <span>Global Request Headers (JSON object)</span>
+            <textarea id="requestHeaders" placeholder='{"Authorization": "Bearer your-token"}'></textarea>
+          </label>
+          <label class="field">
+            <span>Global Query Parameters (JSON object)</span>
+            <textarea id="requestQuery" placeholder='{"env": "staging"}'></textarea>
+          </label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <label class="field">
+              <span>Timeout (sec)</span>
+              <input id="timeout" type="number" min="0.1" max="60" value="10" step="0.5">
+            </label>
+            <label class="field">
+              <span>Concurrency (workers)</span>
+              <input id="concurrency" type="number" min="1" max="20" value="5" step="1">
+            </label>
+          </div>
+          
+          <label class="check"><input id="allowPrivate" type="checkbox"><span>Permit localhost / private subnets</span></label>
+          <label class="check"><input id="allowMutating" type="checkbox" checked><span>Permit mutating verbs (POST, PUT, DELETE, PATCH)</span></label>
+          <label class="check"><input id="analyze" type="checkbox"><span>Run AI Failure Diagnosis on errors</span></label>
+
+          <button class="button" id="runButton" style="width:100%;justify-content:center;margin-top:10px" disabled>Execute Selected Tests</button>
+          <div class="progress-bar-container hidden" id="progressBar">
+            <div class="progress-bar-fill" id="progressFill"></div>
+          </div>
           <div id="runStatus" class="status" role="status"></div>
         </div>
       </section>
+
+      <!-- Right Content Column -->
       <section>
+        <!-- Test Cases Review Card -->
         <div id="casesCard" class="card hidden">
-          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">3. Review test cases</h2><div class="actions"><button class="button secondary" id="selectAll">Select all</button><button class="button secondary" id="selectNone">Clear</button><button class="button secondary" id="exportPostman">Export Postman</button><button class="button secondary" id="exportPytest">Export pytest</button></div></div>
-          
-          <div class="ai-box">
-            <strong>✨ AI Edge Case & Semantic Generator</strong>
-            <div style="display:flex;gap:8px">
-              <input id="aiCustomPrompt" type="text" placeholder="Prompt AI: e.g. 'Test negative amounts, IDOR & SQL injection'" style="flex:1;padding:8px 10px;font-size:12px">
-              <button class="button" id="generateAiButton" type="button" style="white-space:nowrap;padding:8px 12px;font-size:12px">Synthesize Cases</button>
+          <div class="actions" style="justify-content:space-between">
+            <h2 style="margin:0">3. Review & Edit Test Cases</h2>
+            <div class="actions">
+              <button class="button secondary sm" id="selectAll">Select all</button>
+              <button class="button secondary sm" id="selectNone">Clear</button>
+              <button class="button secondary sm" id="exportPostman">Postman v2.1</button>
+              <button class="button secondary sm" id="exportPytest">pytest Suite</button>
             </div>
-            <div id="aiGenStatus" class="status" style="margin-top:6px;font-size:11px"></div>
           </div>
 
-          <div id="caseSummary" class="hint" style="margin:12px 0"></div>
+          <!-- AI Generator Box -->
+          <div class="ai-box">
+            <strong>✨ AI Edge Case & Semantic Payload Synthesizer</strong>
+            <div style="display:flex;gap:8px">
+              <input id="aiCustomPrompt" type="text" placeholder="Instruct AI: e.g. 'Test negative quantity, IDOR, SQL injection, long unicode'" style="flex:1">
+              <button class="button sm" id="generateAiButton" type="button" style="white-space:nowrap">Synthesize Cases</button>
+            </div>
+            <div id="aiGenStatus" class="status" style="font-size:11px"></div>
+          </div>
+
+          <!-- Search and Filter Bar -->
+          <div class="filter-bar">
+            <input id="searchCases" class="search-input" type="text" placeholder="🔍 Search endpoint, path, or test name...">
+            <button class="filter-pill active" data-filter="all">All (<span id="countAll">0</span>)</button>
+            <button class="filter-pill" data-filter="positive">Positive</button>
+            <button class="filter-pill" data-filter="negative">Negative</button>
+            <button class="filter-pill" data-filter="ai_generated">AI Generated</button>
+          </div>
+
+          <div id="caseSummary" class="hint" style="margin:8px 0"></div>
           <div id="caseList"></div>
         </div>
 
+        <!-- Stateful Workflows Card -->
         <div id="workflowsCard" class="card hidden">
-          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">4. Stateful Workflows (CRUD Chaining)</h2><span class="hint">Multi-step sequences with variable extraction</span></div>
+          <div class="actions" style="justify-content:space-between">
+            <h2 style="margin:0">4. Stateful CRUD Workflows</h2>
+            <span class="hint">Multi-step sequences with variable extraction</span>
+          </div>
           <div id="workflowList" style="margin-top:12px"></div>
         </div>
 
+        <!-- Execution Report Card -->
         <div id="reportCard" class="card hidden">
-          <div class="actions" style="justify-content:space-between"><h2 style="margin:0">Execution report</h2><div class="actions"><button class="button secondary" id="downloadReport">Download JSON</button><button class="button secondary" id="downloadMarkdown">Download Markdown</button></div></div>
+          <div class="actions" style="justify-content:space-between">
+            <h2 style="margin:0">5. Execution Report & Inspector</h2>
+            <div class="actions">
+              <button class="button secondary sm" id="downloadReport">JSON Report</button>
+              <button class="button secondary sm" id="downloadMarkdown">Markdown Summary</button>
+            </div>
+          </div>
           <div id="reportContent" style="margin-top:16px"></div>
         </div>
       </section>
     </div>
   </main>
+
+  <!-- Edit Test Case Modal -->
+  <div id="editModal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h3 id="modalTitle" style="margin:0">Edit Test Case Payload</h3>
+        <button class="button secondary sm" id="closeModal">✕</button>
+      </div>
+      <label class="field">
+        <span>Test Name</span>
+        <input id="editName" type="text">
+      </label>
+      <label class="field">
+        <span>Path & Endpoint</span>
+        <input id="editPath" type="text" readonly style="opacity:0.8">
+      </label>
+      <label class="field">
+        <span>Expected Status Codes (comma separated)</span>
+        <input id="editStatus" type="text" placeholder="200, 201">
+      </label>
+      <label class="field">
+        <span>Request Body (JSON)</span>
+        <textarea id="editBody" rows="5"></textarea>
+      </label>
+      <label class="field">
+        <span>Request Headers (JSON)</span>
+        <textarea id="editHeaders" rows="3"></textarea>
+      </label>
+      <label class="field">
+        <span>Query Parameters (JSON)</span>
+        <textarea id="editQuery" rows="3"></textarea>
+      </label>
+      <div class="actions" style="justify-content:flex-end;margin-top:16px">
+        <button class="button secondary" id="cancelModal">Cancel</button>
+        <button class="button" id="saveModal">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = id => document.getElementById(id);
     let currentEndpoints = [];
     let currentWorkflows = [];
     let cases = [];
     let reportData = null;
-    const safe = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-    const setStatus = (id, message, kind="") => { $(id).textContent=message; $(id).className=`status ${kind}`; };
+    let editingCaseIndex = null;
+    let activeFilter = "all";
+
+    const safe = val => String(val ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    const setStatus = (id, msg, kind="") => { $(id).textContent = msg; $(id).className = `status ${kind}`; };
+
+    // Dark Mode management
+    const initTheme = () => {
+      const saved = localStorage.getItem("api_theme") || "dark";
+      document.documentElement.setAttribute("data-theme", saved);
+      $("themeToggle").textContent = saved === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode";
+    };
+    $("themeToggle").addEventListener("click", () => {
+      const current = document.documentElement.getAttribute("data-theme");
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("api_theme", next);
+      $("themeToggle").textContent = next === "dark" ? "☀️ Light Mode" : "🌙 Dark Mode";
+    });
+    initTheme();
+
     const updateSelection = () => {
-      const selected = document.querySelectorAll(".case input:checked").length;
+      const selected = document.querySelectorAll(".case-checkbox:checked").length;
       $("runButton").disabled = selected === 0;
       $("caseSummary").textContent = `${selected} of ${cases.length} test cases selected`;
     };
+
     function renderCases(endpoints) {
       currentEndpoints = endpoints;
-      cases = endpoints.flatMap(endpoint => endpoint.test_cases || []);
-      $("caseList").innerHTML = endpoints.map(endpoint => `<div class="endpoint"><div class="endpoint-title">${safe(endpoint.method)} ${safe(endpoint.path)} <small>${safe(endpoint.summary || "")}</small></div>${(endpoint.test_cases||[]).map(test => {
-        const index=cases.indexOf(test);
-        return `<label class="case"><input type="checkbox" data-case="${index}" checked><span><span class="case-name">${safe(test.name)}</span><div class="case-meta">${safe(test.type)}${test.expected_status ? ` · expects ${safe(test.expected_status.join(", "))}` : " · expected status not documented"}${test.rationale ? ` · <em>💡 ${safe(test.rationale)}</em>` : ""}</div></span></label>`;
-      }).join("")}</div>`).join("");
-      document.querySelectorAll(".case input").forEach(input => input.addEventListener("change", updateSelection));
-      $("casesCard").classList.remove("hidden"); $("targetCard").classList.remove("hidden");
-      $("runButton").disabled=false; updateSelection();
+      cases = endpoints.flatMap(ep => ep.test_cases || []);
+      $("countAll").textContent = cases.length;
+      renderCaseList();
+      $("casesCard").classList.remove("hidden");
+      $("targetCard").classList.remove("hidden");
+      updateSelection();
       loadWorkflows(endpoints);
     }
-    async function loadWorkflows(endpoints){
+
+    function renderCaseList() {
+      const search = ($("searchCases").value || "").toLowerCase().trim();
+      const filtered = cases.filter(test => {
+        const matchesFilter = activeFilter === "all" || test.type === activeFilter;
+        const matchesSearch = !search || 
+          test.name.toLowerCase().includes(search) || 
+          test.path.toLowerCase().includes(search) || 
+          test.method.toLowerCase().includes(search);
+        return matchesFilter && matchesSearch;
+      });
+
+      $("caseList").innerHTML = filtered.map(test => {
+        const index = cases.indexOf(test);
+        const methodClass = `method-${test.method.toLowerCase()}`;
+        return `
+          <div class="case" data-index="${index}">
+            <div class="case-info">
+              <input type="checkbox" class="case-checkbox" data-case="${index}" checked>
+              <span class="method-badge ${methodClass}">${safe(test.method)}</span>
+              <div>
+                <span class="case-name">${safe(test.name)}</span>
+                <div class="case-meta"><code>${safe(test.path)}</code> · expects <strong>${safe(test.expected_status ? test.expected_status.join(", ") : "any")}</strong> · <em>${safe(test.type)}</em>${test.rationale ? ` · 💡 ${safe(test.rationale)}` : ""}</div>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="button secondary sm" onclick="openEditModal(${index})" title="Edit payload">✏️ Edit</button>
+              <button class="button secondary sm" onclick="runSingleCase(${index})" title="Run single test">▶ Run</button>
+            </div>
+          </div>
+          <div id="singleResult_${index}" class="hint hidden" style="padding:4px 12px;margin-bottom:6px"></div>
+        `;
+      }).join("");
+
+      document.querySelectorAll(".case-checkbox").forEach(input => input.addEventListener("change", updateSelection));
+      updateSelection();
+    }
+
+    // Filter pills & search
+    document.querySelectorAll(".filter-pill").forEach(pill => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".filter-pill").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        activeFilter = pill.dataset.filter;
+        renderCaseList();
+      });
+    });
+    $("searchCases").addEventListener("input", renderCaseList);
+
+    // Edit Modal Logic
+    window.openEditModal = function(index) {
+      editingCaseIndex = index;
+      const tc = cases[index];
+      $("modalTitle").textContent = `Edit Test: ${tc.name}`;
+      $("editName").value = tc.name;
+      $("editPath").value = `${tc.method.toUpperCase()} ${tc.path}`;
+      $("editStatus").value = tc.expected_status ? tc.expected_status.join(", ") : "200";
+      $("editBody").value = tc.body ? JSON.stringify(tc.body, null, 2) : "";
+      $("editHeaders").value = Object.keys(tc.headers || {}).length ? JSON.stringify(tc.headers, null, 2) : "";
+      $("editQuery").value = Object.keys(tc.query_params || {}).length ? JSON.stringify(tc.query_params, null, 2) : "";
+      $("editModal").classList.remove("hidden");
+    };
+
+    const closeEditModal = () => { $("editModal").classList.add("hidden"); editingCaseIndex = null; };
+    $("closeModal").addEventListener("click", closeEditModal);
+    $("cancelModal").addEventListener("click", closeEditModal);
+
+    $("saveModal").addEventListener("click", () => {
+      if (editingCaseIndex === null) return;
+      const tc = cases[editingCaseIndex];
+      try {
+        tc.name = $("editName").value.trim() || tc.name;
+        const statusVals = $("editStatus").value.split(",").map(v => parseInt(v.trim())).filter(n => !isNaN(n));
+        if (statusVals.length) tc.expected_status = statusVals;
+        
+        const bodyTxt = $("editBody").value.trim();
+        tc.body = bodyTxt ? JSON.parse(bodyTxt) : null;
+        
+        const headersTxt = $("editHeaders").value.trim();
+        tc.headers = headersTxt ? JSON.parse(headersTxt) : {};
+        
+        const queryTxt = $("editQuery").value.trim();
+        tc.query_params = queryTxt ? JSON.parse(queryTxt) : {};
+        
+        renderCaseList();
+        closeEditModal();
+      } catch (err) {
+        alert("Invalid JSON format in Body, Headers, or Query params: " + err.message);
+      }
+    });
+
+    // Run Single Test Case
+    window.runSingleCase = async function(index) {
+      const tc = cases[index];
+      const resContainer = $(`singleResult_${index}`);
+      resContainer.classList.remove("hidden");
+      resContainer.innerHTML = `<span style="color:var(--primary)">Executing single test…</span>`;
+      
+      const allowedHosts = $("allowedHosts").value.split(",").map(h => h.trim()).filter(Boolean);
+      let requestHeaders = {}, requestQuery = {};
+      try {
+        const text = $("requestHeaders").value.trim(); if (text) requestHeaders = JSON.parse(text);
+        const queryText = $("requestQuery").value.trim(); if (queryText) requestQuery = JSON.parse(queryText);
+      } catch(e){}
+
+      try {
+        const res = await fetch("/run", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            test_cases: [tc],
+            base_url: $("baseUrl").value.trim(),
+            allowed_hosts: allowedHosts,
+            request_headers: requestHeaders,
+            request_query_params: requestQuery,
+            timeout: Number($("timeout").value),
+            allow_private_network: $("allowPrivate").checked,
+            allow_mutating_methods: $("allowMutating").checked,
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Test execution failed.");
+        const epResults = data.report.by_endpoint[0]?.results[0];
+        const passed = epResults?.outcome === "passed";
+        resContainer.innerHTML = `
+          <div style="background:${passed ? '#16a34a15' : '#dc262615'};border:1px solid ${passed ? '#16a34a40' : '#dc262640'};padding:6px 10px;border-radius:6px;font-size:11px;display:flex;justify-content:space-between;align-items:center">
+            <span><strong>${passed ? '✓ PASSED' : '✗ FAILED'}</strong> · Status ${epResults?.actual_status ?? 'N/A'} (expected ${tc.expected_status?.join(",")}) · ${epResults?.duration_ms?.toFixed(1)} ms</span>
+            ${epResults?.schema_validation_passed === false ? '<span style="color:#ef4444">⚠️ Schema Drift</span>' : ''}
+          </div>
+        `;
+      } catch (err) {
+        resContainer.innerHTML = `<span style="color:var(--badge-fail)">${safe(err.message)}</span>`;
+      }
+    };
+
+    // Workflows Generator
+    async function loadWorkflows(endpoints) {
       try {
         const res = await fetch("/workflows/generate", {
           method: "POST",
@@ -118,33 +656,34 @@
         });
         const data = await res.json();
         currentWorkflows = data.workflows || [];
-        if(currentWorkflows.length > 0){
+        if (currentWorkflows.length > 0) {
           renderWorkflows(currentWorkflows);
           $("workflowsCard").classList.remove("hidden");
         } else {
           $("workflowsCard").classList.add("hidden");
         }
-      } catch(e) { console.error("Workflows generation failed", e); }
+      } catch(e) { console.error("Workflows failed", e); }
     }
-    function renderWorkflows(workflows){
+
+    function renderWorkflows(workflows) {
       $("workflowList").innerHTML = workflows.map((wf, idx) => `
         <div class="wf-card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div><strong>${safe(wf.name)}</strong><div class="hint">${safe(wf.description)}</div></div>
-            <button class="button secondary" onclick="runWorkflow(${idx})">Execute Workflow</button>
+            <button class="button secondary sm" onclick="runWorkflow(${idx})">Execute Workflow</button>
           </div>
-          <div style="font-size:11px;color:#596d81;margin-bottom:6px">Steps:</div>
-          ${wf.steps.map(s => `<div class="wf-step">🔹 <strong>${safe(s.name)}</strong> <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small>${s.extract_variables.length ? ` <span style="color:#1769aa">↳ Extracts: ${safe(s.extract_variables.map(v=>v.variable_name).join(", "))}</span>`:""}</div>`).join("")}
-          ${wf.teardown_steps.map(s => `<div class="wf-step" style="color:#9333ea">🧹 <strong>Teardown:</strong> ${safe(s.name)} <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small></div>`).join("")}
+          ${wf.steps.map(s => `<div class="wf-step">🔹 <strong>${safe(s.name)}</strong> <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small>${s.extract_variables.length ? ` <span style="color:var(--primary)">↳ Extracts: ${safe(s.extract_variables.map(v=>v.variable_name).join(", "))}</span>`:""}</div>`).join("")}
+          ${wf.teardown_steps.map(s => `<div class="wf-step" style="color:#c084fc">🧹 <strong>Teardown:</strong> ${safe(s.name)} <small>(${safe(s.test_case.method)} ${safe(s.test_case.path)})</small></div>`).join("")}
           <div id="wfResult_${idx}" style="margin-top:8px"></div>
         </div>
       `).join("");
     }
-    window.runWorkflow = async function(idx){
+
+    window.runWorkflow = async function(idx) {
       const wf = currentWorkflows[idx];
       const resContainer = $(`wfResult_${idx}`);
-      resContainer.innerHTML = `<span class="hint">Executing workflow sequence…</span>`;
-      const allowedHosts = $("allowedHosts").value.split(",").map(host=>host.trim()).filter(Boolean);
+      resContainer.innerHTML = `<span class="hint">Executing sequence…</span>`;
+      const allowedHosts = $("allowedHosts").value.split(",").map(h => h.trim()).filter(Boolean);
       let requestHeaders = {};
       try { const t = $("requestHeaders").value.trim(); if(t) requestHeaders = JSON.parse(t); } catch(e){}
       try {
@@ -161,45 +700,62 @@
           })
         });
         const data = await res.json();
-        if(!res.ok) throw new Error(data.detail || "Workflow run failed.");
-        let outHtml = `<div style="background:${data.passed?'#f6ffed':'#fff2f0'};border:1px solid ${data.passed?'#b7eb8f':'#ffccc7'};padding:8px;border-radius:6px;font-size:12px;margin-top:6px">`;
+        if (!res.ok) throw new Error(data.detail || "Workflow run failed.");
+        let outHtml = `<div style="background:${data.passed?'#16a34a15':'#dc262615'};border:1px solid ${data.passed?'#16a34a40':'#dc262640'};padding:8px;border-radius:6px;font-size:12px;margin-top:6px">`;
         outHtml += `<div><strong>${data.passed ? '✅ Workflow Passed' : '❌ Workflow Failed'}</strong> (${data.duration_ms.toFixed(1)} ms)</div>`;
-        if(Object.keys(data.context_variables).length > 0){
-          outHtml += `<div class="hint" style="color:#1d39c4;margin:4px 0">Variables Captured: ${safe(JSON.stringify(data.context_variables))}</div>`;
+        if (Object.keys(data.context_variables).length > 0) {
+          outHtml += `<div class="hint" style="color:var(--primary);margin:4px 0">Variables Captured: ${safe(JSON.stringify(data.context_variables))}</div>`;
         }
-        if(data.error) outHtml += `<div style="color:#cf1322">${safe(data.error)}</div>`;
+        if (data.error) outHtml += `<div style="color:var(--badge-fail)">${safe(data.error)}</div>`;
         outHtml += `<div style="margin-top:6px">${data.step_results.map(r => `<div style="font-size:11px">${r.outcome==='passed'?'✓':'✗'} ${safe(r.name)} (${safe(r.method)} ${safe(r.path)}): ${r.actual_status || 'error'}</div>`).join("")}</div>`;
         outHtml += `</div>`;
         resContainer.innerHTML = outHtml;
-      } catch(err){
-        resContainer.innerHTML = `<span style="color:#cf1322;font-size:12px">${safe(err.message)}</span>`;
+      } catch(err) {
+        resContainer.innerHTML = `<span style="color:var(--badge-fail);font-size:12px">${safe(err.message)}</span>`;
       }
     };
+
+    // Upload Handler
     $("uploadButton").addEventListener("click", async () => {
-      const file=$("specFile").files[0]; if(!file){setStatus("uploadStatus","Choose a YAML or JSON spec first.","error");return;}
-      const form=new FormData(); form.append("file",file); $("uploadButton").disabled=true; setStatus("uploadStatus","Parsing specification…");
-      try { const response=await fetch("/upload",{method:"POST",body:form}); const data=await response.json(); if(!response.ok) throw new Error(data.detail||"Upload failed.");
-        renderCases(data.endpoints); setStatus("uploadStatus",`${data.total_endpoints} endpoints parsed successfully.`,"ok"); $("reportCard").classList.add("hidden");
-      } catch(error){setStatus("uploadStatus",error.message,"error");} finally{$("uploadButton").disabled=false;}
+      const file = $("specFile").files[0];
+      if (!file) { setStatus("uploadStatus", "Choose a YAML or JSON spec first.", "error"); return; }
+      const form = new FormData();
+      form.append("file", file);
+      $("uploadButton").disabled = true;
+      setStatus("uploadStatus", "Parsing specification…");
+      try {
+        const response = await fetch("/upload", {method:"POST", body: form});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "Upload failed.");
+        renderCases(data.endpoints);
+        setStatus("uploadStatus", `${data.total_endpoints} endpoints parsed successfully.`, "ok");
+        $("reportCard").classList.add("hidden");
+      } catch(error) {
+        setStatus("uploadStatus", error.message, "error");
+      } finally {
+        $("uploadButton").disabled = false;
+      }
     });
+
+    // AI Generator Handler
     $("generateAiButton").addEventListener("click", async () => {
-      if(!currentEndpoints.length){setStatus("aiGenStatus","Upload a specification first.","error");return;}
+      if (!currentEndpoints.length) { setStatus("aiGenStatus", "Upload a specification first.", "error"); return; }
       const promptText = $("aiCustomPrompt").value.trim();
       $("generateAiButton").disabled = true;
       setStatus("aiGenStatus", "Synthesizing AI test cases…");
       try {
         let totalAdded = 0;
-        for(const endpoint of currentEndpoints.slice(0, 5)) {
+        for (const ep of currentEndpoints.slice(0, 5)) {
           const res = await fetch("/generate/ai", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({endpoint: endpoint, user_prompt: promptText, count: 2})
+            body: JSON.stringify({endpoint: ep, user_prompt: promptText, count: 2})
           });
           const resData = await res.json();
-          if(!res.ok) throw new Error(resData.detail || "AI generation failed.");
-          endpoint.test_cases = endpoint.test_cases || [];
-          for(const newCase of resData.test_cases) {
-            endpoint.test_cases.push(newCase);
+          if (!res.ok) throw new Error(resData.detail || "AI generation failed.");
+          ep.test_cases = ep.test_cases || [];
+          for (const newCase of resData.test_cases) {
+            ep.test_cases.push(newCase);
             totalAdded++;
           }
         }
@@ -211,69 +767,92 @@
         $("generateAiButton").disabled = false;
       }
     });
-    $("addBaseHost").addEventListener("click",()=>{try{const host=new URL($("baseUrl").value).hostname;const hosts=$("allowedHosts").value.split(",").map(value=>value.trim()).filter(Boolean);if(!hosts.includes(host))hosts.push(host);$("allowedHosts").value=hosts.join(", ");}catch{setStatus("runStatus","Enter a valid base URL first.","error");}});
-    $("selectAll").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=true);updateSelection();});
-    $("selectNone").addEventListener("click",()=>{document.querySelectorAll(".case input").forEach(input=>input.checked=false);updateSelection();});
-    $("runButton").addEventListener("click",async()=>{
-      let requestHeaders={},requestQuery={};
+
+    $("addBaseHost").addEventListener("click", () => {
       try {
-        const text=$("requestHeaders").value.trim(); requestHeaders=text?JSON.parse(text):{};
-        if(!requestHeaders||Array.isArray(requestHeaders)||typeof requestHeaders!=="object") throw new Error("Headers must be a JSON object.");
-        const queryText=$("requestQuery").value.trim(); requestQuery=queryText?JSON.parse(queryText):{};
-        if(!requestQuery||Array.isArray(requestQuery)||typeof requestQuery!=="object") throw new Error("Query parameters must be a JSON object.");
-      } catch(error){ setStatus("runStatus",`Invalid request credentials: ${error.message}`,"error"); return; }
-      
-      const selected=[...document.querySelectorAll(".case input:checked")].map(input=>cases[Number(input.dataset.case)]);
-      const allowedHosts=$("allowedHosts").value.split(",").map(host=>host.trim()).filter(Boolean);
-      const concurrency=Number($("concurrency").value || 5);
-      const payload={
-        test_cases:selected,
-        base_url:$("baseUrl").value.trim(),
-        allowed_hosts:allowedHosts,
-        request_headers:requestHeaders,
-        request_query_params:requestQuery,
-        timeout:Number($("timeout").value),
-        concurrency:concurrency,
-        allow_private_network:$("allowPrivate").checked,
-        allow_mutating_methods:$("allowMutating").checked,
-        analyze_failures:$("analyze").checked
+        const host = new URL($("baseUrl").value).hostname;
+        const hosts = $("allowedHosts").value.split(",").map(v => v.trim()).filter(Boolean);
+        if (!hosts.includes(host)) hosts.push(host);
+        $("allowedHosts").value = hosts.join(", ");
+      } catch {
+        setStatus("runStatus", "Enter a valid base URL first.", "error");
+      }
+    });
+
+    $("selectAll").addEventListener("click", () => {
+      document.querySelectorAll(".case-checkbox").forEach(i => i.checked = true);
+      updateSelection();
+    });
+    $("selectNone").addEventListener("click", () => {
+      document.querySelectorAll(".case-checkbox").forEach(i => i.checked = false);
+      updateSelection();
+    });
+
+    // Run Batch with SSE Progress
+    $("runButton").addEventListener("click", async () => {
+      let requestHeaders = {}, requestQuery = {};
+      try {
+        const text = $("requestHeaders").value.trim(); requestHeaders = text ? JSON.parse(text) : {};
+        const queryText = $("requestQuery").value.trim(); requestQuery = queryText ? JSON.parse(queryText) : {};
+      } catch(error) {
+        setStatus("runStatus", `Invalid credentials: ${error.message}`, "error"); return;
+      }
+
+      const selected = [...document.querySelectorAll(".case-checkbox:checked")].map(i => cases[Number(i.dataset.case)]);
+      const allowedHosts = $("allowedHosts").value.split(",").map(h => h.trim()).filter(Boolean);
+      const concurrency = Number($("concurrency").value || 5);
+      const payload = {
+        test_cases: selected,
+        base_url: $("baseUrl").value.trim(),
+        allowed_hosts: allowedHosts,
+        request_headers: requestHeaders,
+        request_query_params: requestQuery,
+        timeout: Number($("timeout").value),
+        concurrency: concurrency,
+        allow_private_network: $("allowPrivate").checked,
+        allow_mutating_methods: $("allowMutating").checked,
+        analyze_failures: $("analyze").checked
       };
 
-      $("runButton").disabled=true;
-      setStatus("runStatus",`Executing ${selected.length} tests concurrently (${concurrency} workers)…`);
+      $("runButton").disabled = true;
+      $("progressBar").classList.remove("hidden");
+      $("progressFill").style.width = "0%";
+      setStatus("runStatus", `Executing ${selected.length} tests concurrently (${concurrency} workers)…`);
 
       try {
-        const response=await fetch("/run/stream",{
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(payload)
+        const response = await fetch("/run/stream", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
         });
-        if(!response.ok) {
-          const errData=await response.json();
-          throw new Error(errData.detail||"Test run failed.");
+        if (!response.ok) {
+          const errData = await response.json();
+          throw new Error(errData.detail || "Run failed.");
         }
-        const reader=response.body.getReader();
-        const decoder=new TextDecoder("utf-8");
-        let buffer="";
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
 
         while(true) {
           const {done, value} = await reader.read();
-          if(done) break;
-          buffer += decoder.decode(value, {stream:true});
+          if (done) break;
+          buffer += decoder.decode(value, {stream: true});
           const chunks = buffer.split("\n\n");
           buffer = chunks.pop();
 
-          for(const chunk of chunks) {
+          for (const chunk of chunks) {
             const trimmed = chunk.trim();
-            if(trimmed.startsWith("data:")) {
+            if (trimmed.startsWith("data:")) {
               const eventData = JSON.parse(trimmed.slice(5).trim());
-              if(eventData.type === "progress") {
+              if (eventData.type === "progress") {
                 const pct = Math.round((eventData.completed / eventData.total) * 100);
+                $("progressFill").style.width = `${pct}%`;
                 setStatus("runStatus", `Executing: ${eventData.completed}/${eventData.total} (${pct}%) · ${safe(eventData.result.name)}`);
-              } else if(eventData.type === "complete") {
+              } else if (eventData.type === "complete") {
                 reportData = eventData;
+                $("progressFill").style.width = "100%";
                 renderReport(eventData);
-                setStatus("runStatus", `Run complete: ${eventData.report.summary.total_tests} tests executed.`, "ok");
+                setStatus("runStatus", `Run complete: ${eventData.report.summary.total_tests} tests evaluated.`, "ok");
               }
             }
           }
@@ -284,19 +863,105 @@
         updateSelection();
       }
     });
-    function renderReport(data){
-      const report=data.report, summary=report.summary;
-      const counts=summary.counts;
-      let html=`<div class="metric-grid"><div class="metric"><strong>${summary.total_tests}</strong><span>Total</span></div><div class="metric"><strong>${counts.passed}</strong><span>Passed</span></div><div class="metric"><strong>${counts.failed}</strong><span>Failed</span></div><div class="metric"><strong>${counts.error}</strong><span>Errors</span></div><div class="metric"><strong>${summary.pass_rate===null?"—":`${Math.round(summary.pass_rate*100)}%`}</strong><span>Pass rate</span></div><div class="metric" style="background:${summary.contract_violations>0?"#fff1f0":"#fff"}"><strong>${summary.contract_violations||0}</strong><span style="color:${summary.contract_violations>0?"#cf1322":"#687b8f"}">Contract Drift</span></div></div>`;
-      html+=report.by_endpoint.map(endpoint=>`<div class="endpoint"><div class="endpoint-title">${safe(endpoint.method)} ${safe(endpoint.path)}</div>${endpoint.results.map(result=>`<div class="result-row"><div><strong>${safe(result.name)}</strong><div class="muted">Expected ${safe(result.expected_status?.join(", ")||"unknown")} · actual ${safe(result.actual_status??"not sent")} · ${safe(Number(result.duration_ms).toFixed(1))} ms${result.sla_exceeded?' · <span style="color:#d46b08">⏱️ SLA Exceeded</span>':""}${result.schema_validation_passed===false?' · <span style="color:#cf1322">⚠️ Schema Drift</span>':""}${result.error?` · ${safe(result.error)}`:""}</div></div><span class="badge ${safe(result.outcome)}">${safe(result.outcome)}</span></div>`).join("")}</div>`).join("");
-      if(data.analysis){const a=data.analysis;html+=`<div class="analysis"><h3>AI failure analysis</h3><p>${safe(a.summary)}</p>${renderList("Observed facts",a.observed_facts)}${renderList("Hypotheses",a.hypotheses)}${renderList("Recommendations",a.recommendations)}</div>`;}
-      if(data.analysis_error)html+=`<div class="analysis">${safe(data.analysis_error)}</div>`;
-      $("reportContent").innerHTML=html;$("reportCard").classList.remove("hidden");
+
+    // Render Execution Report & Interactive Inspector
+    function renderReport(data) {
+      const report = data.report, summary = report.summary;
+      const counts = summary.counts;
+      let html = `
+        <div class="metric-grid">
+          <div class="metric"><strong>${summary.total_tests}</strong><span>Total</span></div>
+          <div class="metric"><strong>${counts.passed}</strong><span style="color:var(--badge-pass)">Passed</span></div>
+          <div class="metric"><strong>${counts.failed}</strong><span style="color:var(--badge-fail)">Failed</span></div>
+          <div class="metric"><strong>${counts.error}</strong><span>Errors</span></div>
+          <div class="metric"><strong>${summary.pass_rate===null?"—":`${Math.round(summary.pass_rate*100)}%`}</strong><span>Pass rate</span></div>
+          <div class="metric" style="border-color:${summary.contract_violations>0?"var(--badge-fail)":"var(--card-border)"}">
+            <strong>${summary.contract_violations||0}</strong>
+            <span style="color:${summary.contract_violations>0?"var(--badge-fail)":"var(--text-muted)"}">Drift</span>
+          </div>
+        </div>
+      `;
+
+      html += report.by_endpoint.map((ep, epIdx) => `
+        <div class="endpoint">
+          <div class="endpoint-title" style="margin-bottom:8px">
+            <div><span class="method-badge method-${ep.method.toLowerCase()}">${safe(ep.method)}</span> <strong>${safe(ep.path)}</strong></div>
+            <small style="color:var(--text-muted)">${ep.results.length} tests</small>
+          </div>
+          ${ep.results.map((r, rIdx) => {
+            const rowId = `res_${epIdx}_${rIdx}`;
+            return `
+              <div class="result-row">
+                <div class="result-header" onclick="toggleInspector('${rowId}')">
+                  <div>
+                    <strong>${safe(r.name)}</strong>
+                    <span style="color:var(--text-muted);font-size:11px;margin-left:8px">${safe(r.duration_ms.toFixed(1))} ms</span>
+                    ${r.schema_validation_passed === false ? ' <span style="color:var(--badge-fail)">⚠️ Drift</span>' : ''}
+                    ${r.sla_exceeded ? ' <span style="color:var(--badge-warn)">⏱️ SLA</span>' : ''}
+                  </div>
+                  <span class="badge ${safe(r.outcome)}">${safe(r.outcome)} (${safe(r.actual_status ?? 'err')})</span>
+                </div>
+                <div id="${rowId}" class="result-body">
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px">
+                    <div>
+                      <strong>Expectation:</strong> Status <code>${safe(r.expected_status ? r.expected_status.join(", ") : "any")}</code><br>
+                      <strong>Actual Status:</strong> <code>${safe(r.actual_status ?? "not received")}</code>
+                    </div>
+                    <div>
+                      <strong>Duration:</strong> <code>${safe(r.duration_ms.toFixed(1))} ms</code><br>
+                      <strong>Contract Validation:</strong> ${r.schema_validation_passed === false ? '<span style="color:var(--badge-fail)">Violated</span>' : '<span style="color:var(--badge-pass)">Compliant</span>'}
+                    </div>
+                  </div>
+                  ${r.error ? `<div style="background:#dc262610;border:1px solid #dc262630;padding:8px;border-radius:6px;color:var(--badge-fail);margin-top:6px"><strong>Diagnostic Error:</strong> ${safe(r.error)}</div>` : ''}
+                  ${r.schema_validation_errors?.length ? `<div style="margin-top:6px;color:var(--badge-fail)"><strong>Schema Drift Errors:</strong><ul>${r.schema_validation_errors.map(e => `<li><code>${safe(e)}</code></li>`).join("")}</ul></div>` : ''}
+                  ${r.header_validation_errors?.length ? `<div style="margin-top:6px;color:var(--badge-fail)"><strong>Header Assertions:</strong><ul>${r.header_validation_errors.map(e => `<li>${safe(e)}</li>`).join("")}</ul></div>` : ''}
+                </div>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `).join("");
+
+      if (data.analysis) {
+        const a = data.analysis;
+        html += `
+          <div class="analysis">
+            <h3>🤖 AI Failure Analysis</h3>
+            <p>${safe(a.summary)}</p>
+            ${renderList("Observed facts", a.observed_facts)}
+            ${renderList("Hypotheses", a.hypotheses)}
+            ${renderList("Recommendations", a.recommendations)}
+          </div>
+        `;
+      }
+      if (data.analysis_error) html += `<div class="analysis">${safe(data.analysis_error)}</div>`;
+
+      $("reportContent").innerHTML = html;
+      $("reportCard").classList.remove("hidden");
     }
-    function renderList(title,items){return items?.length?`<h3>${title}</h3><ul>${items.map(item=>`<li>${safe(item)}</li>`).join("")}</ul>`:"";}
-    $("downloadReport").addEventListener("click",()=>{if(!reportData)return;const blob=new Blob([JSON.stringify(reportData,null,2)],{type:"application/json"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download="api-test-report.json";link.click();URL.revokeObjectURL(link.href);});
+
+    window.toggleInspector = function(id) {
+      const el = $(id);
+      if (el) el.classList.toggle("open");
+    };
+
+    function renderList(title, items) {
+      return items?.length ? `<strong>${title}:</strong><ul>${items.map(i => `<li>${safe(i)}</li>`).join("")}</ul>` : "";
+    }
+
+    // Exporters
+    $("downloadReport").addEventListener("click", () => {
+      if (!reportData) return;
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], {type: "application/json"});
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "api-test-report.json";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
     $("exportPostman").addEventListener("click", async () => {
-      if(!cases.length) return alert("Upload a specification first.");
+      if (!cases.length) return alert("Upload a specification first.");
       try {
         const res = await fetch("/export/postman", {
           method: "POST",
@@ -312,8 +977,9 @@
         URL.revokeObjectURL(link.href);
       } catch(e) { alert("Postman export failed: " + e.message); }
     });
+
     $("exportPytest").addEventListener("click", async () => {
-      if(!cases.length) return alert("Upload a specification first.");
+      if (!cases.length) return alert("Upload a specification first.");
       try {
         const res = await fetch("/export/pytest", {
           method: "POST",
@@ -329,8 +995,9 @@
         URL.revokeObjectURL(link.href);
       } catch(e) { alert("pytest export failed: " + e.message); }
     });
+
     $("downloadMarkdown").addEventListener("click", async () => {
-      if(!reportData || !reportData.report) return;
+      if (!reportData || !reportData.report) return;
       try {
         const res = await fetch("/export/markdown", {
           method: "POST",
