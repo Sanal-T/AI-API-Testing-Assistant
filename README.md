@@ -1,78 +1,172 @@
-# AI API Testing Assistant
+# ◈ AI API Testing Assistant
 
-A Python/FastAPI backend that parses OpenAPI documents, generates deterministic API test cases, executes them against explicitly configured targets, and summarizes results. AI analysis is an optional explanation layer; it does not determine pass or fail.
+An autonomous, contract-aware, multi-model API testing platform built with Python & FastAPI. 
 
-## Setup
+It parses OpenAPI 3.0 / Swagger specifications, synthesizes deterministic and AI-powered edge-case test suites, executes tests concurrently with real-time SSE streaming, validates response contracts (JSON Schema Draft 2020-12 & SLA checks), orchestrates multi-step stateful CRUD workflows with variable chaining, and exports native test reports for CI/CD pipelines (JUnit XML, Postman v2.1, pytest, and GitHub Markdown).
+
+---
+
+## ⚡ Key Capabilities
+
+- **✨ Dual Test Generation Engine**:
+  - **Deterministic Fuzzing**: Schema-compliant positive tests, type mismatch attacks, boundary violations (`min/max`, `minLength/maxLength`), null injection, array constraints, and authentication stripping.
+  - **Semantic AI Generation**: Generates domain-aware edge cases (negative balances, IDOR vulnerabilities, SQLi/XSS boundaries, edge timestamps) using Gemini, Claude, OpenAI, or local Ollama.
+- **🛡️ Response Contract Validation & SLA Assertions**:
+  - Validates API responses against OpenAPI JSON Schemas (`jsonschema.Draft202012Validator`).
+  - Flags **Contract Drift** and **SLA latency breaches** even when APIs return `200 OK`.
+- **🔄 Multi-Step Stateful Workflows (CRUD Chaining)**:
+  - Automates dependent sequence testing (e.g. `POST /item` ➔ extract `{{id}}` ➔ `GET /item/{{id}}` ➔ `PUT` ➔ `DELETE`).
+  - Guaranteed teardown execution for zero test residue.
+- **🤖 Multi-Model & Local LLM Layer**:
+  - Supports **Google Gemini** (Gemini 2.0 Flash/Pro), **Anthropic Claude** (Claude 3.5 Sonnet), **OpenAI** (GPT-4o), and **Local LLMs** (Ollama, vLLM, LocalAI) without cloud dependencies.
+- **🚀 Concurrent Batch Engine & Real-Time SSE Streaming**:
+  - Configurable worker pools (1–20 concurrent threads) with order preservation.
+  - Live Server-Sent Events (`POST /run/stream`) streaming real-time progress.
+- **💻 Headless CLI & CI/CD Exporters**:
+  - CLI runner for automation: `python -m app.cli run --spec openapi.yaml --base-url https://api.staging.internal --output-junit results.xml`
+  - Multi-format exporters: **JUnit XML**, **Postman Collection v2.1**, standalone runnable **pytest** files, and **GitHub PR Markdown summaries**.
+- **🎨 Modern Dark/Light Web Interface**:
+  - Refined developer-first UI with persistent Dark/Light mode, live search & category filters, in-place test payload editor, single-test runner, and expandable response inspector.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Installation
 
 ```powershell
-python -m venv venv
-venv\Scripts\Activate.ps1
+# Clone the repository
+git clone https://github.com/Sanal-T/ai-api-testing-assistant.git
+cd ai-api-testing-assistant
+
+# Activate the virtual environment
+.\venv\Scripts\Activate.ps1
+
+# (Optional) Install dependencies if setting up a fresh environment
 pip install -r requirements.txt
-uvicorn app.main:app --reload
 ```
 
-Open `http://127.0.0.1:8000/` for the browser workflow or `http://127.0.0.1:8000/docs` for the API documentation. The UI uploads YAML or JSON OpenAPI files up to 5 MiB, lets you review and select generated cases, and shows the resulting report. Uploading a specification does not execute requests.
-
-## Safe execution
-
-`POST /run` accepts selected test cases returned by `/upload`, plus an explicit `base_url` and `allowed_hosts`. It runs at most 100 cases per request. The UI supports caller-supplied request headers and query parameters for API authentication; these values are never included in reports or AI input. Private or local targets and mutating methods require separate opt-ins; keep those disabled except for an authorized test environment. The executor does not use OpenAPI server URLs as an implicit target.
-
-```python
-import json
-from urllib.request import Request, urlopen
-
-payload = {
-    "test_cases": [{
-        "name": "Check health",
-        "method": "GET",
-        "path": "/health",
-        "type": "positive",
-        "expected_status": [200],
-    }],
-    "base_url": "http://127.0.0.1:8001",
-    "allowed_hosts": ["127.0.0.1"],
-    "allow_private_network": True,
-}
-request = Request(
-    "http://127.0.0.1:8000/run",
-    data=json.dumps(payload).encode(),
-    headers={"Content-Type": "application/json"},
-    method="POST",
-)
-with urlopen(request) as response:
-    print(json.loads(response.read())["report"])
-```
-
-The response contains the execution report and an optional AI analysis. Response bodies and headers are not returned in the report. Private-network access and mutating methods are disabled by default; enabling them is an explicit authorization for that run.
-
-## Reports
-
-Pass execution results to `app.report.summary.build_execution_report(results)`. It returns JSON-serializable totals and groups by endpoint and test type. `pass_rate` is `passed / (passed + failed)`; error, unverified, and skipped cases do not enter that denominator. Reports omit response bodies and headers.
-
-## Optional AI failure analysis
-
-The analyzer sends only test names, method/path templates, expected and actual statuses, outcome, error category, and duration. It omits request parameters, headers, bodies, response bodies, and raw error text. Use it only when sharing this metadata with the configured provider is appropriate.
-
-Set the API key and model in the environment before calling `analyze_failures`:
+### 2. Launch the Web Interface
 
 ```powershell
-$env:OPENAI_API_KEY = "your-api-key"
-$env:OPENAI_MODEL = "your-enabled-model"
+python -m uvicorn app.main:app --reload
+```
+Navigate to `http://127.0.0.1:8000` in your browser. API documentation is available at `http://127.0.0.1:8000/docs`.
+
+---
+
+## 🤖 Configuring AI Providers
+
+Copy the example environment configuration:
+```powershell
+cp .env.example .env
 ```
 
-```python
-from app.analysis.failure_analyzer import analyze_failures
+Configure your preferred AI provider in `.env`:
 
-analysis = analyze_failures(execution_results)
-print(analysis.model_dump())
+```ini
+# Provider options: "gemini", "anthropic", "openai", "ollama"
+AI_PROVIDER=gemini
+
+# Google Gemini (Default)
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.0-flash
+
+# Anthropic Claude
+ANTHROPIC_API_KEY=your-anthropic-api-key
+ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+
+# OpenAI
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-4o-mini
+
+# Zero-Cloud Local LLM (Ollama / vLLM / LocalAI)
+LOCAL_LLM_URL=http://localhost:11434/v1
+LOCAL_LLM_MODEL=llama3.2
 ```
 
-The analyzer uses the OpenAI Responses API with storage disabled for the request. AI output separates observed facts from hypotheses and recommendations; validate suggestions before acting on them. No API key or model call is required by the upload, generation, execution, or reporting modules.
+---
 
-## Tests
+## 💻 Headless CLI & CI/CD Automation
+
+Run end-to-end API tests directly in CI/CD pipelines (GitHub Actions, GitLab CI, Azure DevOps, Jenkins) without opening a browser:
+
+### Execute Tests & Export Reports
+```powershell
+python -m app.cli run `
+  --spec petstore.yaml `
+  --base-url http://127.0.0.1:8000 `
+  --concurrency 5 `
+  --output-junit results.xml `
+  --output-markdown summary.md `
+  --output-json report.json
+```
+
+### Export Test Suite to Postman or pytest
+```powershell
+# Export to Postman Collection v2.1
+python -m app.cli export --spec petstore.yaml --format postman --output postman_collection.json
+
+# Export to runnable standalone pytest test file
+python -m app.cli export --spec petstore.yaml --format pytest --output test_generated_api.py
+```
+
+### CLI Command Reference
+| Option | Description | Default |
+| :--- | :--- | :---: |
+| `--spec` | Path to OpenAPI YAML or JSON specification | *Required* |
+| `--base-url` | Target API base URL | *Required* |
+| `--allowed-hosts` | Comma-separated allowed target hostnames | Base URL host |
+| `--allow-private-network` | Permit localhost & private subnet execution | `False` |
+| `--concurrency` | Number of parallel worker threads (1–20) | `5` |
+| `--timeout` | Per-request timeout in seconds | `10.0` |
+| `-H, --header` | Custom request headers (repeatable e.g. `-H "Authorization: Bearer token"`) | None |
+| `-q, --query` | Custom query parameters (repeatable) | None |
+| `--output-junit` | File path to write standard JUnit XML report | None |
+| `--output-markdown` | File path to write GitHub PR / Step summary markdown | None |
+| `--output-json` | File path to write raw JSON report | None |
+| `--ai-provider` | Provider for AI failure analysis (`gemini`, `anthropic`, `openai`, `ollama`) | None |
+| `--no-exit-code` | Prevent non-zero exit code on test failure | `False` |
+
+---
+
+## 🛡️ Built-in Security Guardrails
+
+1. **SSRF Guardrails**: Blocks requests to local, private, loopback, link-local, and reserved networks by default via DNS resolution and IP address classification.
+2. **Explicit Allowlisting**: Requires target hostnames to be explicitly declared in `allowed_hosts`.
+3. **Mutation Protection**: State-changing HTTP verbs (`POST`, `PUT`, `PATCH`, `DELETE`) are strictly blocked unless `allow_mutating_methods` is explicitly opted into.
+4. **Credential Scrubbing**: Sensitive headers (`Authorization`, `Set-Cookie`, `Proxy-Authenticate`) and sensitive response bodies are stripped from execution reports.
+5. **Zero Secret Leakage to AI**: AI failure diagnosis receives only test metadata, endpoint paths, duration, and status codes—**never** credentials, secrets, or raw request/response payloads.
+
+---
+
+## 🧪 Running the Test Suite
 
 ```powershell
-venv\Scripts\python.exe -m unittest discover -s tests
+# Run the complete automated test suite
+python -m unittest discover tests
 ```
 
-The end-to-end test starts a loopback HTTP fixture. Run the suite in an environment that permits local socket binding.
+---
+
+## 📁 Project Architecture
+
+```
+ai-api-testing-assistant/
+├── app/
+│   ├── ai/               # Multi-model LLM abstraction (Gemini, Claude, OpenAI, Ollama)
+│   ├── analysis/         # Privacy-conscious AI failure diagnostic engine
+│   ├── api/              # FastAPI routers (/upload, /run, /generate, /workflows, /export)
+│   ├── executor/         # HTTP executor, thread pool batch runner, and contract validator
+│   ├── generator/        # Deterministic boundary fuzzer and semantic AI generator
+│   ├── models/           # Pydantic data schemas (TestCase, ExecutionResult, Workflow, etc.)
+│   ├── parser/           # OpenAPI 3.0 / Swagger recursive JSON pointer dereferencer
+│   ├── report/           # Metrics summarizer, JUnit XML, Postman, and pytest exporters
+│   ├── ui/               # Modern dark/light single-page web application
+│   ├── cli.py            # Headless CLI entrypoint for terminal and CI/CD runs
+│   ├── constants.py      # Runtime limits and security guardrails
+│   └── main.py           # Application entrypoint & exception handling
+├── tests/                # Comprehensive unit, integration, and E2E test suites
+├── requirements.txt      # Project dependencies
+└── PROJECT_ROADMAP.md    # Multi-phase engineering roadmap and architecture status
+```
