@@ -25,7 +25,7 @@ from app.report.exporters import (
 
 class TestCliAndExporters(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.client = TestClient(app, client=("127.0.0.1", 50000))
         self.sample_cases = [
             TestCase(
                 name="Get Item 1",
@@ -142,7 +142,7 @@ class TestCliAndExporters(unittest.TestCase):
         # Postman
         resp_pm = self.client.post(
             "/export/postman",
-            json={"test_cases": [c.model_dump() for c in self.sample_cases]},
+            json={"test_cases": [c.model_dump(mode="json") for c in self.sample_cases]},
         )
         self.assertEqual(resp_pm.status_code, 200)
         self.assertIn("schema", resp_pm.json()["info"])
@@ -150,7 +150,7 @@ class TestCliAndExporters(unittest.TestCase):
         # Pytest
         resp_py = self.client.post(
             "/export/pytest",
-            json={"test_cases": [c.model_dump() for c in self.sample_cases]},
+            json={"test_cases": [c.model_dump(mode="json") for c in self.sample_cases]},
         )
         self.assertEqual(resp_py.status_code, 200)
         self.assertIn("def test_000", resp_py.text)

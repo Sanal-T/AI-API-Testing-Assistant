@@ -6,6 +6,7 @@ click==8.4.2
 colorama==0.4.6
 fastapi==0.140.0
 h11==0.16.0
+httpx==0.28.1
 idna==3.18
 jsonschema==4.26.0
 jsonschema-path==0.5.0

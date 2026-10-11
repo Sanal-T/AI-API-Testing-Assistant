@@ -113,7 +113,7 @@ class AITestGeneratorTests(unittest.TestCase):
             }]
         }
 
-        with patch("urllib.request.urlopen") as mock_urlopen:
+        with patch("app.generator.ai_generator.urlopen") as mock_urlopen:
             mock_resp = MagicMock()
             mock_resp.read.return_value = json.dumps(raw_response).encode("utf-8")
             mock_urlopen.return_value.__enter__.return_value = mock_resp
@@ -123,17 +123,17 @@ class AITestGeneratorTests(unittest.TestCase):
             self.assertEqual(cases[0]["name"], "Fenced test")
 
     def test_api_generate_endpoint_requires_configured_provider(self):
-        with patch.dict("os.environ", {"OPENAI_API_KEY": ""}):
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "", "AI_PROVIDER": "openai"}):
             with self.assertRaises(HTTPException) as raised:
                 generate_custom_ai_tests(
-                    AIGenerateRequest(endpoint=self.endpoint, user_prompt="Test something")
+                    AIGenerateRequest(endpoint=self.endpoint, user_prompt="Test something", provider="openai")
                 )
             self.assertEqual(raised.exception.status_code, 503)
 
     def test_api_generate_endpoint_returns_json_serialized_cases(self):
         provider = _FakeAIGeneratorProvider()
         with (
-            patch("app.api.generate.OpenAITestGeneratorProvider.from_environment", return_value=provider),
+            patch("app.api.generate.get_llm_provider", return_value=provider),
             patch("app.api.generate.generate_ai_test_cases", return_value=[
                 TestCase(
                     name="AI Custom Test",

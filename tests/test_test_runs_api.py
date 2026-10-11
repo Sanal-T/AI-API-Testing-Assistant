@@ -11,6 +11,11 @@ from app.models.test_run import TestRunRequest
 
 
 class TestRunApiTests(unittest.TestCase):
+    def setUp(self):
+        self.server_policy = patch.dict("os.environ", {"ALLOWED_HOSTS": "api.example.com"})
+        self.server_policy.start()
+        self.addCleanup(self.server_policy.stop)
+
     def test_executes_explicit_allowlisted_batch_and_returns_safe_report(self):
         request = self._request(request_headers={"Authorization": "Bearer caller-secret"})
         with patch("app.api.test_runs.execute_test_case", side_effect=self._execute) as execute:
@@ -41,6 +46,18 @@ class TestRunApiTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as raised:
                 run_tests(self._request(request_headers={"Host": "internal.example"}))
             self.assertIn("controlled by the executor", raised.exception.detail)
+            execute.assert_not_called()
+
+    def test_client_cannot_expand_server_target_policy_or_enable_private_network(self):
+        with patch("app.api.test_runs.execute_test_case") as execute:
+            with patch.dict("os.environ", {"ALLOWED_HOSTS": "other.example"}):
+                with self.assertRaises(HTTPException) as raised:
+                    run_tests(self._request())
+                self.assertEqual(raised.exception.status_code, 403)
+            with patch.dict("os.environ", {"ALLOWED_HOSTS": "api.example.com"}):
+                with self.assertRaises(HTTPException) as raised:
+                    run_tests(self._request(allow_private_network=True))
+                self.assertEqual(raised.exception.status_code, 403)
             execute.assert_not_called()
 
     def test_opt_in_analysis_is_called_only_for_failed_results(self):
