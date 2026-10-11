@@ -3,6 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
 import unittest
+from unittest.mock import patch
 
 from app.generator.testcase_generator import generate_test_cases
 from app.api.test_runs import run_tests
@@ -63,13 +64,17 @@ class PipelineEndToEndTests(unittest.TestCase):
             for test_case in generate_test_cases(endpoint)
         ]
 
-        response = run_tests(TestRunRequest(
-            test_cases=[test_case for _, test_case in generated],
-            base_url=self.base_url,
-            allowed_hosts={"127.0.0.1"},
-            allow_private_network=True,
-            allow_mutating_methods=True,
-        ))
+        with patch.dict(
+            "os.environ",
+            {"ALLOWED_HOSTS": "127.0.0.1", "ALLOW_PRIVATE_NETWORK_TARGETS": "true"},
+        ):
+            response = run_tests(TestRunRequest(
+                test_cases=[test_case for _, test_case in generated],
+                base_url=self.base_url,
+                allowed_hosts={"127.0.0.1"},
+                allow_private_network=True,
+                allow_mutating_methods=True,
+            ))
         report = response["report"]
 
         self.assertEqual(len(generated), 6)

@@ -13,7 +13,13 @@ from app.models.test_run import TestRunRequest
 
 class TestPerformanceAndStreaming(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
+        self.server_policy = patch.dict(
+            "os.environ",
+            {"ALLOWED_HOSTS": "127.0.0.1", "ALLOW_PRIVATE_NETWORK_TARGETS": "true"},
+        )
+        self.server_policy.start()
+        self.addCleanup(self.server_policy.stop)
+        self.client = TestClient(app, client=("127.0.0.1", 50000))
         self.cases = [
             TestCase(name=f"Case {i}", method="GET", path=f"/items/{i}", type="smoke", expected_status=[200])
             for i in range(5)
@@ -71,7 +77,7 @@ class TestPerformanceAndStreaming(unittest.TestCase):
 
     def test_run_stream_endpoint_produces_valid_sse(self):
         payload = {
-            "test_cases": [case.model_dump() for case in self.cases[:3]],
+            "test_cases": [case.model_dump(mode="json") for case in self.cases[:3]],
             "base_url": "http://127.0.0.1:8000",
             "allowed_hosts": ["127.0.0.1"],
             "allow_private_network": True,

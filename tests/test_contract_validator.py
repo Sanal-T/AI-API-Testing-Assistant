@@ -208,7 +208,13 @@ class ContractValidatorTests(unittest.TestCase):
         fake_response.headers = {"Content-Type": "application/json"}
         fake_response.read.return_value = b'{"wrong_key": "drifted"}'
 
-        with patch("urllib.request.OpenerDirector.open", return_value=fake_response):
+        with (
+            patch("app.executor.http_executor._validate_target_url", return_value="93.184.216.34"),
+            patch(
+                "app.executor.http_executor._open_pinned_request",
+                return_value=(fake_response, MagicMock()),
+            ),
+        ):
             result = execute_test_case(
                 test_case,
                 "https://api.example.com",

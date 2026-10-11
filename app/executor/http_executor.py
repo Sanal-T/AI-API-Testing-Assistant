@@ -1,14 +1,14 @@
 from collections.abc import Generator, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import ipaddress
+import http.client
 import json
 import re
 import socket
 from time import perf_counter
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode, urlsplit, urlunsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+import ssl
 
 from app.models.execution_result import (
     ExecutionErrorKind,
@@ -30,9 +30,36 @@ _BLOCKED_REQUEST_HEADERS = BLOCKED_REQUEST_HEADERS
 _SENSITIVE_RESPONSE_HEADERS = SENSITIVE_RESPONSE_HEADERS
 
 
-class _NoRedirectHandler(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        return None
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """HTTP connection that dials a previously validated address, not DNS again."""
+
+    def __init__(self, host: str, port: int, address: str, timeout: float):
+        super().__init__(host, port, timeout=timeout)
+        self._target_address = address
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._target_address, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self._tunnel()
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection pinned to an IP while retaining hostname TLS validation."""
+
+    def __init__(self, host: str, port: int, address: str, timeout: float):
+        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
+        self._target_address = address
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection(
+            (self._target_address, self.port), self.timeout, self.source_address
+        )
+        if self._tunnel_host:
+            self._tunnel()
+        server_hostname = self._tunnel_host or self.host
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=server_hostname)
 
 
 def execute_test_case(
@@ -64,7 +91,7 @@ def execute_test_case(
         )
 
     url = _build_request_url(base_url, test_case.path, test_case.path_params, test_case.query_params)
-    _validate_target_url(
+    target_address = _validate_target_url(
         url,
         allowed_hosts=allowed_hosts,
         allow_private_network=allow_private_network,
@@ -72,22 +99,15 @@ def execute_test_case(
 
     headers = _build_request_headers(test_case.headers, has_body=test_case.body is not None)
     body = None if test_case.body is None else json.dumps(test_case.body).encode("utf-8")
-    request = Request(url, data=body, headers=headers, method=method)
-    opener = build_opener(_NoRedirectHandler())
-
     started = perf_counter()
     try:
-        response = opener.open(request, timeout=timeout)
-    except HTTPError as exc:
-        # urllib represents non-2xx responses as HTTPError; they are still
-        # actual HTTP responses and should be evaluated against the assertion.
-        response = exc
-    except (URLError, TimeoutError, socket.timeout, OSError) as exc:
-        reason = getattr(exc, "reason", exc)
+        response, connection = _open_pinned_request(
+            url, method, body, headers, timeout, target_address
+        )
+    except (TimeoutError, socket.timeout, OSError) as exc:
         error_kind = (
             ExecutionErrorKind.TIMEOUT
             if isinstance(exc, (TimeoutError, socket.timeout))
-            or isinstance(reason, (TimeoutError, socket.timeout))
             else ExecutionErrorKind.NETWORK
         )
         return TestExecutionResult(
@@ -98,15 +118,17 @@ def execute_test_case(
             response_body=None,
             duration_ms=(perf_counter() - started) * 1000,
             error_kind=error_kind,
-            error=str(reason),
+            error=str(exc),
         )
 
-    with response:
+    try:
         response_bytes = response.read(MAX_RESPONSE_BYTES + 1)
         truncated = len(response_bytes) > MAX_RESPONSE_BYTES
         response_bytes = response_bytes[:MAX_RESPONSE_BYTES]
         status = response.status
         response_headers = _safe_response_headers(response.headers)
+    finally:
+        connection.close()
 
     duration_ms = (perf_counter() - started) * 1000
     response_body_text = response_bytes.decode("utf-8", errors="replace")
@@ -327,7 +349,7 @@ def _validate_target_url(
     *,
     allowed_hosts: set[str],
     allow_private_network: bool,
-) -> None:
+) -> str:
     parsed = urlsplit(url)
     if not parsed.hostname:
         raise ValueError("Target URL must include a hostname.")
@@ -343,9 +365,7 @@ def _validate_target_url(
     normalized_allowlist = {host.strip("[]").rstrip(".").lower() for host in allowed_hosts}
     if hostname not in normalized_allowlist:
         raise ValueError("Target hostname is not in the configured allowlist.")
-    if allow_private_network:
-        return
-    if hostname == "localhost" or hostname.endswith((".localhost", ".local", ".internal")):
+    if not allow_private_network and (hostname == "localhost" or hostname.endswith((".localhost", ".local", ".internal"))):
         raise ValueError("Local and internal targets require allow_private_network=True.")
 
     try:
@@ -359,8 +379,35 @@ def _validate_target_url(
             }
         except (OSError, ValueError) as exc:
             raise ValueError(f"Target hostname could not be resolved safely: {hostname}") from exc
-    if not addresses or any(not address.is_global for address in addresses):
+    if not addresses or (not allow_private_network and any(not address.is_global for address in addresses)):
         raise ValueError("Private, loopback, link-local, and reserved targets require allow_private_network=True.")
+    # Select and retain the validated address so the HTTP client cannot resolve
+    # the hostname again between validation and connection (DNS rebinding).
+    return sorted(addresses, key=lambda address: (address.version, address.packed))[0].compressed
+
+
+def _open_pinned_request(
+    url: str,
+    method: str,
+    body: bytes | None,
+    headers: dict[str, str],
+    timeout: float,
+    target_address: str,
+):
+    parsed = urlsplit(url)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme.lower() == "https" else 80)
+    connection_type = _PinnedHTTPSConnection if parsed.scheme.lower() == "https" else _PinnedHTTPConnection
+    connection = connection_type(host, port, target_address, timeout)
+    path = urlunsplit(("", "", parsed.path or "/", parsed.query, ""))
+    request_headers = dict(headers)
+    request_headers["Host"] = parsed.netloc
+    try:
+        connection.request(method, path, body=body, headers=request_headers)
+        return connection.getresponse(), connection
+    except Exception:
+        connection.close()
+        raise
 
 
 def _build_request_headers(headers: dict[str, Any], *, has_body: bool) -> dict[str, str]:
