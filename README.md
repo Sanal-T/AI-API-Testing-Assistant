@@ -48,6 +48,14 @@ pip install -r requirements.txt
 
 ### 2. Launch the Web Interface
 
+Copy `.env.example` to `.env` and set `ALLOWED_HOSTS` to the exact hostnames this
+server is permitted to test. Requests to `/run` and `/workflows/run` are disabled
+until this server-owned allowlist is configured. Private targets also require
+`ALLOW_PRIVATE_NETWORK_TARGETS=true`; enable it only for a trusted local instance.
+Without `API_ACCESS_TOKEN`, API requests are accepted only from loopback. Set a
+long random token before exposing the server to a network, then enter it in the
+upload panel in the browser. The UI keeps it in session storage for that tab.
+
 ```powershell
 python -m uvicorn app.main:app --reload
 ```
@@ -132,17 +140,21 @@ python -m app.cli export --spec petstore.yaml --format pytest --output test_gene
 
 ## 🛡️ Built-in Security Guardrails
 
-1. **SSRF Guardrails**: Blocks requests to local, private, loopback, link-local, and reserved networks by default via DNS resolution and IP address classification.
-2. **Explicit Allowlisting**: Requires target hostnames to be explicitly declared in `allowed_hosts`.
+1. **SSRF Guardrails**: Resolves and validates the destination, then pins the actual connection to that validated IP address to prevent DNS rebinding. Private, loopback, link-local, and reserved networks are blocked by default.
+2. **Server-Owned Allowlisting**: Web execution can only target hosts configured in the server's `ALLOWED_HOSTS`; request `allowed_hosts` values can narrow that list but cannot add targets.
 3. **Mutation Protection**: State-changing HTTP verbs (`POST`, `PUT`, `PATCH`, `DELETE`) are strictly blocked unless `allow_mutating_methods` is explicitly opted into.
 4. **Credential Scrubbing**: Sensitive headers (`Authorization`, `Set-Cookie`, `Proxy-Authenticate`) and sensitive response bodies are stripped from execution reports.
 5. **Zero Secret Leakage to AI**: AI failure diagnosis receives only test metadata, endpoint paths, duration, and status codes—**never** credentials, secrets, or raw request/response payloads.
+6. **API Access Control**: API routes accept loopback requests by default. Set `API_ACCESS_TOKEN` to require bearer authentication for every API request; use HTTPS when exposing the service beyond localhost.
 
 ---
 
 ## 🧪 Running the Test Suite
 
 ```powershell
+# Install dependencies, including Starlette's TestClient transport
+pip install -r requirements.txt
+
 # Run the complete automated test suite
 python -m unittest discover tests
 ```

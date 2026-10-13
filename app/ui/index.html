@@ -322,6 +322,10 @@
             <span>Upload OpenAPI Document (YAML or JSON, max 5 MiB)</span>
             <input id="specFile" type="file" accept=".yaml,.yml,.json">
           </label>
+          <label class="field">
+            <span>Server API Access Token (kept for this browser session)</span>
+            <input id="apiAccessToken" type="password" autocomplete="off" placeholder="Required for remote or token-protected servers">
+          </label>
           <button class="button" id="uploadButton">Parse and generate tests</button>
           <div id="uploadStatus" class="status" role="status"></div>
         </div>
@@ -479,6 +483,15 @@
 
     const safe = val => String(val ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const setStatus = (id, msg, kind="") => { $(id).textContent = msg; $(id).className = `status ${kind}`; };
+    const tokenInput = $("apiAccessToken");
+    tokenInput.value = sessionStorage.getItem("api_access_token") || "";
+    tokenInput.addEventListener("input", () => sessionStorage.setItem("api_access_token", tokenInput.value));
+    async function apiFetch(url, options = {}) {
+      const headers = new Headers(options.headers || {});
+      const token = tokenInput.value.trim();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(url, {...options, headers});
+    }
 
     // Dark Mode management
     const initTheme = () => {
@@ -617,7 +630,7 @@
       } catch(e){}
 
       try {
-        const res = await fetch("/run", {
+        const res = await apiFetch("/run", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
@@ -649,7 +662,7 @@
     // Workflows Generator
     async function loadWorkflows(endpoints) {
       try {
-        const res = await fetch("/workflows/generate", {
+        const res = await apiFetch("/workflows/generate", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({endpoints: endpoints})
@@ -687,7 +700,7 @@
       let requestHeaders = {};
       try { const t = $("requestHeaders").value.trim(); if(t) requestHeaders = JSON.parse(t); } catch(e){}
       try {
-        const res = await fetch("/workflows/run", {
+        const res = await apiFetch("/workflows/run", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
@@ -696,7 +709,7 @@
             allowed_hosts: allowedHosts,
             request_headers: requestHeaders,
             allow_private_network: $("allowPrivate").checked,
-            allow_mutating_methods: true
+            allow_mutating_methods: $("allowMutating").checked
           })
         });
         const data = await res.json();
@@ -724,7 +737,7 @@
       $("uploadButton").disabled = true;
       setStatus("uploadStatus", "Parsing specification…");
       try {
-        const response = await fetch("/upload", {method:"POST", body: form});
+      const response = await apiFetch("/upload", {method:"POST", body: form});
         const data = await response.json();
         if (!response.ok) throw new Error(data.detail || "Upload failed.");
         renderCases(data.endpoints);
@@ -746,7 +759,7 @@
       try {
         let totalAdded = 0;
         for (const ep of currentEndpoints.slice(0, 5)) {
-          const res = await fetch("/generate/ai", {
+          const res = await apiFetch("/generate/ai", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({endpoint: ep, user_prompt: promptText, count: 2})
@@ -820,7 +833,7 @@
       setStatus("runStatus", `Executing ${selected.length} tests concurrently (${concurrency} workers)…`);
 
       try {
-        const response = await fetch("/run/stream", {
+        const response = await apiFetch("/run/stream", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify(payload)
@@ -963,7 +976,7 @@
     $("exportPostman").addEventListener("click", async () => {
       if (!cases.length) return alert("Upload a specification first.");
       try {
-        const res = await fetch("/export/postman", {
+        const res = await apiFetch("/export/postman", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({test_cases: cases, collection_name: "API Tests Collection"})
@@ -981,7 +994,7 @@
     $("exportPytest").addEventListener("click", async () => {
       if (!cases.length) return alert("Upload a specification first.");
       try {
-        const res = await fetch("/export/pytest", {
+        const res = await apiFetch("/export/pytest", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({test_cases: cases, base_url: $("baseUrl").value.trim() || "http://localhost:8000"})
@@ -999,7 +1012,7 @@
     $("downloadMarkdown").addEventListener("click", async () => {
       if (!reportData || !reportData.report) return;
       try {
-        const res = await fetch("/export/markdown", {
+        const res = await apiFetch("/export/markdown", {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({report: reportData.report, analysis: reportData.analysis})

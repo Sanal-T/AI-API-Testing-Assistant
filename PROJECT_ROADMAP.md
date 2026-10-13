@@ -8,9 +8,7 @@
 
 ## Executive Summary
 
-The **AI API Testing Assistant** is currently a functional, deterministic OpenAPI-based test generator and execution engine with safety guardrails (SSRF protection, allowlisting, credential scrubbing) and post-mortem AI failure diagnosis. 
-
-While the foundation is solid with 47 passing tests, the system is primarily a **deterministic contract fuzzer with an AI explanation layer**. To become a true **AI API Testing Assistant**, it must evolve to use AI for *semantic test generation*, *stateful multi-step API chaining*, *response contract validation*, and *multi-model support*.
+The planned feature phases are implemented: OpenAPI parsing, deterministic and AI-assisted case generation, response validation, workflows, provider adapters, streaming execution, exports, and the browser UI. The project is not considered production-ready until the full test suite passes in a clean environment and deployment-specific target policy is configured. The web execution API now requires a server-owned `ALLOWED_HOSTS` setting; private-network targets require an additional operator setting. Connections are pinned to validated DNS results to prevent rebinding.
 
 ---
 
@@ -99,15 +97,15 @@ While the foundation is solid with 47 passing tests, the system is primarily a *
 | :--- | :--- | :---: |
 | **Version Control** | Git repository on `main` branch, tracking remote GitHub repo. 10+ clean, descriptive commits. `.gitignore` active. | **PASS** |
 | **Hardcoded Secrets** | No API keys, passwords, or live tokens hardcoded. `OPENAI_API_KEY` retrieved strictly via `os.environ`. Mock strings used in tests. | **PASS** |
-| **Dead / Redundant Code** | Empty folders (`app/executer/`, `app/utils/`). Duplicated constants (`_MUTATING_METHODS`, `_BLOCKED_HEADERS`). Double target validation. | **NEEDS CLEANUP** |
-| **Error Tracking** | No server-side logging (`logging` module unused). AI exceptions suppressed without stack traces. No Sentry/Loguru integration. | **MISSING** |
-| **Access Control** | No authentication/authorization. Uploaded specs persist permanently in `uploads/` without cleanup. Open SSRF proxy risks. | **ACTION REQUIRED** |
+| **Dead / Redundant Code** | Shared constants are centralized; compatibility aliases remain in the executor and API modules. Request and executor target validation are layered checks. | **REVIEWED** |
+| **Error Tracking** | Standard Python logging and sanitized global error responses are configured. No external error-tracking service is configured. | **PASS** |
+| **Access Control** | API requests are loopback-only unless `API_ACCESS_TOKEN` is configured; with a token, all API routes require bearer authentication. Execution targets are separately limited by server `ALLOWED_HOSTS`. | **CONFIGURE BEFORE DEPLOYMENT** |
 
 ---
 
-## 3. What Needs To Be Done (Development Roadmap)
+## 3. Implemented Development Phases
 
-To elevate this project from a deterministic contract tester to a **complete, intelligent, production-grade AI API Testing Assistant**, the following tasks must be completed.
+The following phases describe the implementation delivered so far; deployment-specific access control and clean-environment verification remain operational follow-up.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -129,7 +127,7 @@ To elevate this project from a deterministic contract tester to a **complete, in
 
 ---
 
-### Phase 1: Codebase Hygiene, Security & Observability (High Priority)
+### Phase 1: Codebase Hygiene, Security & Observability
 - [x] **Fix Upload Storage Leakage ([`app/api/upload.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/api/upload.py))**:
   - Replaced disk writes to `uploads/` with in-memory parsing using `load_spec_from_string`.
   - Prevented user specification accumulation and proprietary data retention on the server.
@@ -144,6 +142,9 @@ To elevate this project from a deterministic contract tester to a **complete, in
   - Preserved exception stack traces in [`app/api/test_runs.py`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/app/api/test_runs.py) for AI provider errors.
 - [x] **Add Configuration & Environment Template**:
   - Created [`.env.example`](file:///c:/Users/SANAL/Desktop/AI-API-Testing-Assistant/.env.example) documenting `OPENAI_API_KEY`, `OPENAI_MODEL`, `ALLOWED_HOSTS`, and `LOG_LEVEL`.
+- [x] **Pin Validated Target Addresses**: The HTTP executor connects to the IP address returned by target validation while preserving the hostname for HTTP Host and TLS certificate checks, preventing a second DNS lookup from bypassing the IP policy.
+- [x] **Enforce Server-Owned Target Policy**: `/run`, `/run/stream`, and `/workflows/run` require targets configured in server `ALLOWED_HOSTS`; private targets additionally require server `ALLOW_PRIVATE_NETWORK_TARGETS=true`.
+- [x] **Protect API Access**: API requests are loopback-only by default. When `API_ACCESS_TOKEN` is configured, every API route requires a matching bearer token; the browser keeps it in session storage.
 
 ---
 
@@ -244,13 +245,11 @@ To elevate this project from a deterministic contract tester to a **complete, in
 
 ---
 
-## 4. Suggested Implementation Schedule
+## 4. Verification and Operational Follow-Up
 
-| Sprint | Focus | Core Deliverables |
-| :---: | :--- | :--- |
-| **Sprint 1** | **Hygiene & Security** | In-memory upload parsing, delete dead directories, structured logging, `.env.example`. |
-| **Sprint 2** | **Contract Validation** | Response body JSON schema validation, latency assertions, status assertion enhancements. |
-| **Sprint 3** | **AI Test Generation** | Semantic payload synthesis, Gemini & OpenAI prompt engineering for business logic edge cases. |
-| **Sprint 4** | **Async Engine & Workflows** | Migrate to `httpx.AsyncClient`, implement multi-step sequence chaining & variable capture. |
-| **Sprint 5** | **CI/CD & CLI** | Command-line runner, JUnit XML exporter, Postman collection exporter. |
-| **Sprint 6** | **UI Modernization** | Live SSE execution updates, interactive JSON viewer, editable test payloads. |
+| Item | Status |
+| :--- | :--- |
+| Full test suite on a clean dependency install | Run `pip install -r requirements.txt` then `python -m unittest discover tests`; keep all provider calls and network targets mocked except the local fixture tests. |
+| Deployment target allowlist | Set `ALLOWED_HOSTS` to operator-approved exact hostnames. |
+| Private target access | Leave `ALLOW_PRIVATE_NETWORK_TARGETS=false` on shared deployments; enable only on trusted local instances. |
+| Shared deployment access control | Place the app behind authentication and keep the server-owned target policy configured. |
