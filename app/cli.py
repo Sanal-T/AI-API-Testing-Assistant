@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 from urllib.parse import urlsplit
+from dotenv import load_dotenv
 
 from app.analysis.failure_analyzer import analyze_failures
 from app.executor.http_executor import execute_batch
@@ -22,6 +23,7 @@ from app.report.exporters import (
 from app.report.summary import build_execution_report
 
 logger = logging.getLogger("app.cli")
+load_dotenv()
 
 
 def parse_header_arg(header_args: list[str] | None) -> dict[str, str]:

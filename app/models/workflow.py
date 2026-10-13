@@ -56,4 +56,4 @@ class WorkflowRunRequest(BaseModel):
     request_headers: dict[str, str] = Field(default_factory=dict)
     timeout: float = Field(default=10.0, gt=0, le=60)
     allow_private_network: bool = False
-    allow_mutating_methods: bool = True
+    allow_mutating_methods: bool = False

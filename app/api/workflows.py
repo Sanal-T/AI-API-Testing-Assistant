@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.executor.workflow_runner import execute_workflow
 from app.generator.workflow_generator import generate_crud_workflows
 from app.models.workflow import WorkflowRunRequest
+from app.target_policy import validate_server_target_policy
 
 logger = logging.getLogger(__name__)
 
@@ -34,13 +35,13 @@ def generate_workflows_endpoint(request: WorkflowGenerateRequest) -> dict:
 @router.post("/workflows/run")
 def run_workflow_endpoint(request: WorkflowRunRequest) -> dict:
     """Execute a multi-step API workflow with dynamic context passing and cleanup."""
-    _validate_workflow_run_target(request)
+    server_allowed_hosts = _validate_workflow_run_target(request)
 
     try:
         result = execute_workflow(
             workflow=request.workflow,
             base_url=request.base_url,
-            allowed_hosts=request.allowed_hosts,
+            allowed_hosts=server_allowed_hosts,
             request_headers=request.request_headers,
             timeout=request.timeout,
             allow_private_network=request.allow_private_network,
@@ -87,7 +88,7 @@ def run_workflow_endpoint(request: WorkflowRunRequest) -> dict:
     }
 
 
-def _validate_workflow_run_target(request: WorkflowRunRequest) -> None:
+def _validate_workflow_run_target(request: WorkflowRunRequest) -> set[str]:
     parsed = urlsplit(request.base_url)
     if (
         parsed.scheme.lower() not in {"http", "https"}
@@ -103,3 +104,6 @@ def _validate_workflow_run_target(request: WorkflowRunRequest) -> None:
     allowed_hosts = {host.strip("[]").rstrip(".").lower() for host in request.allowed_hosts}
     if normalized_host not in allowed_hosts:
         raise HTTPException(status_code=400, detail="base_url hostname must be in allowed_hosts.")
+    return validate_server_target_policy(
+        request.base_url, request.allowed_hosts, request.allow_private_network
+    )

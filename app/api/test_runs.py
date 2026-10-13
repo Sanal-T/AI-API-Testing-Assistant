@@ -28,6 +28,7 @@ from app.models.execution_result import (
 from app.models.test_case import TestCase
 from app.models.test_run import TestRunRequest
 from app.report.summary import build_execution_report
+from app.target_policy import validate_server_target_policy
 
 logger = logging.getLogger(__name__)
 
@@ -89,14 +90,14 @@ def _run_ai_analysis(results: list[TestExecutionResult], provider: Any) -> tuple
 @router.post("/run")
 def run_tests(request: TestRunRequest) -> dict:
     """Execute a user-selected batch against an explicitly allowlisted target."""
-    _validate_run_request(request)
+    server_allowed_hosts = _validate_run_request(request)
     provider = _resolve_provider(request)
 
     prepared_cases = [_prepare_test_case(tc, request) for tc in request.test_cases]
     results = execute_batch(
         prepared_cases,
         request.base_url,
-        allowed_hosts=request.allowed_hosts,
+        allowed_hosts=server_allowed_hosts,
         concurrency=request.concurrency,
         timeout=request.timeout,
         allow_private_network=request.allow_private_network,
@@ -115,7 +116,7 @@ def run_tests(request: TestRunRequest) -> dict:
 @router.post("/run/stream")
 def run_tests_stream(request: TestRunRequest):
     """Execute a user-selected batch with real-time Server-Sent Events (SSE) streaming."""
-    _validate_run_request(request)
+    server_allowed_hosts = _validate_run_request(request)
     provider = _resolve_provider(request)
 
     prepared_cases = [_prepare_test_case(tc, request) for tc in request.test_cases]
@@ -127,7 +128,7 @@ def run_tests_stream(request: TestRunRequest):
         for idx, result in execute_batch_stream(
             prepared_cases,
             request.base_url,
-            allowed_hosts=request.allowed_hosts,
+            allowed_hosts=server_allowed_hosts,
             concurrency=request.concurrency,
             timeout=request.timeout,
             allow_private_network=request.allow_private_network,
@@ -173,7 +174,7 @@ def run_tests_stream(request: TestRunRequest):
     )
 
 
-def _validate_run_request(request: TestRunRequest) -> None:
+def _validate_run_request(request: TestRunRequest) -> set[str]:
     if len(request.request_headers) > 50:
         raise HTTPException(status_code=400, detail="No more than 50 request headers may be supplied.")
     for name, value in request.request_headers.items():
@@ -203,6 +204,10 @@ def _validate_run_request(request: TestRunRequest) -> None:
     if normalized_host not in allowed_hosts:
         raise HTTPException(status_code=400, detail="base_url hostname must be included in allowed_hosts.")
 
+    server_allowed_hosts = validate_server_target_policy(
+        request.base_url, request.allowed_hosts, request.allow_private_network
+    )
+
     for test_case in request.test_cases:
         method = test_case.method.upper()
         if method not in _SUPPORTED_METHODS:
@@ -215,3 +220,5 @@ def _validate_run_request(request: TestRunRequest) -> None:
         missing_path_params = required_path_params - test_case.path_params.keys()
         if missing_path_params:
             raise HTTPException(status_code=400, detail="A test case is missing a required path parameter.")
+
+    return server_allowed_hosts

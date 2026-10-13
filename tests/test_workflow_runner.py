@@ -218,7 +218,10 @@ class WorkflowRunnerTests(unittest.TestCase):
         wf = Workflow(name="Health WF", steps=[WorkflowStep(id="s1", name="health", test_case=step_case)])
         req = WorkflowRunRequest(workflow=wf, base_url="http://127.0.0.1:8000", allowed_hosts={"127.0.0.1"})
 
-        with patch("app.api.workflows.execute_workflow") as mock_exec:
+        with (
+            patch.dict("os.environ", {"ALLOWED_HOSTS": "127.0.0.1", "ALLOW_PRIVATE_NETWORK_TARGETS": "true"}),
+            patch("app.api.workflows.execute_workflow") as mock_exec,
+        ):
             mock_exec.return_value = MagicMock(
                 workflow_name="Health WF",
                 passed=True,
@@ -231,6 +234,28 @@ class WorkflowRunnerTests(unittest.TestCase):
             run_res = run_workflow_endpoint(req)
             self.assertEqual(run_res["workflow_name"], "Health WF")
             self.assertTrue(run_res["passed"])
+
+    def test_teardown_failure_marks_workflow_failed(self):
+        workflow = Workflow(
+            name="cleanup test",
+            steps=[WorkflowStep(id="s", name="read", test_case=TestCase(name="read", method="GET", path="/", type="positive"))],
+            teardown_steps=[WorkflowStep(id="td", name="cleanup", test_case=TestCase(name="cleanup", method="DELETE", path="/", type="positive"))],
+        )
+
+        def fake_executor(case, base_url, **kwargs):
+            outcome = ExecutionOutcome.ERROR if case.name == "cleanup" else ExecutionOutcome.PASSED
+            return TestExecutionResult(
+                test_case=case,
+                outcome=outcome,
+                duration_ms=1.0,
+                error="cleanup failed" if case.name == "cleanup" else None,
+            )
+
+        with patch("app.executor.workflow_runner.execute_test_case", side_effect=fake_executor):
+            result = execute_workflow(workflow, "https://api.example.com", allowed_hosts={"api.example.com"})
+
+        self.assertFalse(result.passed)
+        self.assertIn("Teardown step 'cleanup' failed", result.error)
 
 
 if __name__ == "__main__":

@@ -159,6 +159,13 @@ def execute_workflow(
                 error=f"Teardown error: {exc}",
             )
         teardown_results.append(td_result)
+        if td_result.outcome not in {ExecutionOutcome.PASSED, ExecutionOutcome.UNVERIFIED}:
+            workflow_passed = False
+            teardown_error = (
+                f"Teardown step '{teardown_step.name}' failed with outcome "
+                f"'{td_result.outcome.value}': {td_result.error}"
+            )
+            workflow_error = f"{workflow_error}; {teardown_error}" if workflow_error else teardown_error
 
     total_duration_ms = (perf_counter() - started) * 1000
 
