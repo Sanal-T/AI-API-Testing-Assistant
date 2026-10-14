@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app/main.py": {
+      "includeFiles": "app/ui/index.html",
+      "excludeFiles": "{venv/**,.venv/**,tests/**,docs/**,uploads/**,**/__pycache__/**,**/*.pyc,petstore.yaml,sample_api.yaml}"
+    }
+  }
+}
