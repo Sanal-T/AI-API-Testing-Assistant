@@ -5,8 +5,12 @@ __pycache__/
 
 # Virtual environment
 venv/
+.venv/
 env/
 ENV/
+
+# Vercel local project metadata
+.vercel/
 
 # Testing & coverage
 .pytest_cache/
