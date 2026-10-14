@@ -1,0 +1,47 @@
+openapi: 3.0.3
+info:
+  title: Gemini Models API (minimal test spec)
+  version: 1.0.0
+  description: Minimal OpenAPI document for testing Gemini model listing.
+servers:
+  - url: https://generativelanguage.googleapis.com
+paths:
+  /v1beta/models:
+    get:
+      operationId: listModels
+      summary: List models available to this Gemini API key
+      security:
+        - GeminiApiKey: []
+      responses:
+        '200':
+          description: Model list returned successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        displayName:
+                          type: string
+                        description:
+                          type: string
+                  nextPageToken:
+                    type: string
+        '400':
+          description: Invalid request or API key
+        '401':
+          description: Authentication failed
+        '403':
+          description: API key is missing or does not have access
+components:
+  securitySchemes:
+    GeminiApiKey:
+      type: apiKey
+      in: header
+      name: x-goog-api-key
