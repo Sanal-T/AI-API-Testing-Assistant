@@ -1,184 +1,171 @@
-# ◈ AI API Testing Assistant
+# AI API Testing Assistant
 
-An autonomous, contract-aware, multi-model API testing platform built with Python & FastAPI. 
+AI API Testing Assistant is a local web app and command-line tool for checking HTTP APIs against an OpenAPI or Swagger contract. It reads the API description, creates test cases, sends requests to a running API, and reports whether the responses match the expected status codes and schemas.
 
-It parses OpenAPI 3.0 / Swagger specifications, synthesizes deterministic and AI-powered edge-case test suites, executes tests concurrently with real-time SSE streaming, validates response contracts (JSON Schema Draft 2020-12 & SLA checks), orchestrates multi-step stateful CRUD workflows with variable chaining, and exports native test reports for CI/CD pipelines (JUnit XML, Postman v2.1, pytest, and GitHub Markdown).
+> **This tests APIs, not website screens.** A website may use APIs behind the scenes, but this tool needs an API specification and a reachable API base URL. Use browser automation for visual pages and user flows.
 
----
+## How it works
 
-## ⚡ Key Capabilities
+1. Upload an OpenAPI YAML or JSON file (or pass one to the CLI).
+2. The app parses its paths, operations, request schemas, responses, and declared authentication.
+3. It generates positive and negative test cases. Optional AI generation can add domain-specific cases.
+4. You choose the tests and provide the running API's base URL and any needed request headers.
+5. The app runs the requests, checks status codes and response contracts, and produces a report.
 
-- **✨ Dual Test Generation Engine**:
-  - **Deterministic Fuzzing**: Schema-compliant positive tests, type mismatch attacks, boundary violations (`min/max`, `minLength/maxLength`), null injection, array constraints, and authentication stripping.
-  - **Semantic AI Generation**: Generates domain-aware edge cases (negative balances, IDOR vulnerabilities, SQLi/XSS boundaries, edge timestamps) using Gemini, Claude, OpenAI, or local Ollama.
-- **🛡️ Response Contract Validation & SLA Assertions**:
-  - Validates API responses against OpenAPI JSON Schemas (`jsonschema.Draft202012Validator`).
-  - Flags **Contract Drift** and **SLA latency breaches** even when APIs return `200 OK`.
-- **🔄 Multi-Step Stateful Workflows (CRUD Chaining)**:
-  - Automates dependent sequence testing (e.g. `POST /item` ➔ extract `{{id}}` ➔ `GET /item/{{id}}` ➔ `PUT` ➔ `DELETE`).
-  - Guaranteed teardown execution for zero test residue.
-- **🤖 Multi-Model & Local LLM Layer**:
-  - Supports **Google Gemini** (Gemini 2.0 Flash/Pro), **Anthropic Claude** (Claude 3.5 Sonnet), **OpenAI** (GPT-4o), and **Local LLMs** (Ollama, vLLM, LocalAI) without cloud dependencies.
-- **🚀 Concurrent Batch Engine & Real-Time SSE Streaming**:
-  - Configurable worker pools (1–20 concurrent threads) with order preservation.
-  - Live Server-Sent Events (`POST /run/stream`) streaming real-time progress.
-- **💻 Headless CLI & CI/CD Exporters**:
-  - CLI runner for automation: `python -m app.cli run --spec openapi.yaml --base-url https://api.staging.internal --output-junit results.xml`
-  - Multi-format exporters: **JUnit XML**, **Postman Collection v2.1**, standalone runnable **pytest** files, and **GitHub PR Markdown summaries**.
-- **🎨 Modern Dark/Light Web Interface**:
-  - Refined developer-first UI with persistent Dark/Light mode, live search & category filters, in-place test payload editor, single-test runner, and expandable response inspector.
+The OpenAPI file describes the API; it does not create or start the API. The API must already be running and accessible to the machine running this tester.
 
----
+## Example result
 
-## 🚀 Quick Start
+The screenshot below shows two checks against Gemini's model-list endpoint: an authenticated request succeeded with HTTP 200, and a request without the API key was rejected with HTTP 403 as expected. This verifies that one endpoint and two behaviors worked; it does not test every Gemini endpoint.
 
-### 1. Installation
+![AI API Testing Assistant showing two passing Gemini API tests](docs/images/gemini-api-test-results.png)
+
+## Features
+
+- **OpenAPI and Swagger support:** Parses YAML or JSON documents, validates specifications, resolves local `$ref` schemas, and extracts operations, parameters, responses, and authentication requirements.
+- **Deterministic test generation:** Creates valid requests and negative cases for schema boundaries, required fields, formats, parameters, and missing authentication.
+- **Optional AI-assisted cases and diagnosis:** Supports Gemini, Anthropic, OpenAI, and local OpenAI-compatible providers such as Ollama. AI features require the corresponding provider configuration; basic test generation and execution work without an AI key.
+- **Contract and assertion checks:** Checks documented response schemas, expected status codes, response headers, JSON-path assertions, and optional latency thresholds.
+- **HTTP execution controls:** Runs batches concurrently, streams progress to the browser, supports individual test runs, and allows explicit review of mutating requests.
+- **Stateful workflows:** Chains API operations and passes extracted response values between steps, with teardown steps for cleanup.
+- **Reports and exports:** Provides an execution summary and exports results or suites as JSON, JUnit XML, Markdown, Postman Collection v2.1, and pytest.
+- **Web interface and CLI:** Use the dark/light browser UI for interactive testing or run tests from a terminal or CI job.
+
+## Quick start (Windows PowerShell)
+
+From the project directory:
 
 ```powershell
-# Clone the repository
-git clone https://github.com/Sanal-T/ai-api-testing-assistant.git
-cd ai-api-testing-assistant
-
-# Activate the virtual environment
-.\venv\Scripts\Activate.ps1
-
-# (Optional) Install dependencies if setting up a fresh environment
-pip install -r requirements.txt
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-### 2. Launch the Web Interface
+Open `.env` and set `ALLOWED_HOSTS` to the exact hostnames this local tester is allowed to call. For example:
 
-Copy `.env.example` to `.env` and set `ALLOWED_HOSTS` to the exact hostnames this
-server is permitted to test. Requests to `/run` and `/workflows/run` are disabled
-until this server-owned allowlist is configured. Private targets also require
-`ALLOW_PRIVATE_NETWORK_TARGETS=true`; enable it only for a trusted local instance.
-Without `API_ACCESS_TOKEN`, API requests are accepted only from loopback. Set a
-long random token before exposing the server to a network, then enter it in the
-upload panel in the browser. The UI keeps it in session storage for that tab.
+```ini
+ALLOWED_HOSTS=127.0.0.1,localhost,generativelanguage.googleapis.com
+```
+
+Only include hosts you intend to test. The server-side allowlist is required for execution; the browser's **Explicit Allowed Hosts** field can narrow it but cannot add hosts the server has not allowed. Private and localhost targets are blocked unless the server operator deliberately enables `ALLOW_PRIVATE_NETWORK_TARGETS=true`.
+
+Start the app:
 
 ```powershell
 python -m uvicorn app.main:app --reload
 ```
-Navigate to `http://127.0.0.1:8000` in your browser. API documentation is available at `http://127.0.0.1:8000/docs`.
 
----
+Open [http://127.0.0.1:8000](http://127.0.0.1:8000). FastAPI's interactive API docs are available at [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs).
 
-## 🤖 Configuring AI Providers
+### Try Gemini's model-list API
 
-Copy the example environment configuration:
-```powershell
-cp .env.example .env
-```
+The repository includes a [minimal Gemini OpenAPI example](docs/examples/gemini-model-list.yaml) for `GET /v1beta/models`. It checks only the model-list operation; use a fuller specification to cover additional endpoints.
 
-Configure your preferred AI provider in `.env`:
+1. Obtain a Gemini API key from [Google AI Studio](https://aistudio.google.com/api-keys).
+2. Upload [`docs/examples/gemini-model-list.yaml`](docs/examples/gemini-model-list.yaml) in the browser and choose **Parse and generate tests**.
+3. Set **Target Base URL** to `https://generativelanguage.googleapis.com`.
+4. Set **Explicit Allowed Hosts** to `generativelanguage.googleapis.com` and add it to the target allowlist.
+5. In **Global Request Headers**, enter `{"x-goog-api-key":"YOUR_KEY"}`. Replace the placeholder locally; do not commit or share your key.
+6. Select the valid request to check HTTP 200. Select the missing-authentication case to check that the API rejects a request without the key.
 
-```ini
-# Provider options: "gemini", "anthropic", "openai", "ollama"
-AI_PROVIDER=gemini
+The **Server API Access Token** field is for protecting this tester's own API; it is not the Gemini key. When using the app locally without `API_ACCESS_TOKEN`, leave that field blank. The Gemini key goes in the target request header above. Setting `AI_PROVIDER=gemini` is only necessary when you want Gemini to power optional AI-generated cases or failure analysis.
 
-# Google Gemini (Default)
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL=gemini-2.0-flash
+## Environment configuration
 
-# Anthropic Claude
-ANTHROPIC_API_KEY=your-anthropic-api-key
-ANTHROPIC_MODEL=claude-3-5-sonnet-20241022
+`.env.example` documents the available settings. Copy it to `.env` and set only the providers and targets you need.
 
-# OpenAI
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4o-mini
+| Variable | Purpose |
+| --- | --- |
+| `ALLOWED_HOSTS` | Comma-separated hostnames this server may test. Required for web execution. |
+| `ALLOW_PRIVATE_NETWORK_TARGETS` | Enables private/loopback target testing when set to `true`; use only on a trusted local instance. |
+| `API_ACCESS_TOKEN` | Optional bearer token for this tester's API. Without it, API requests are restricted to loopback. Configure it before exposing the app to a network. |
+| `AI_PROVIDER` | Optional provider for AI-assisted test generation or failure diagnosis: `auto`, `gemini`, `anthropic`, `openai`, `ollama`, or compatible local provider. |
+| `GEMINI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | Provider credentials used by optional AI features. Keep secrets in `.env` or your deployment's secret manager. |
+| `GEMINI_MODEL`, `ANTHROPIC_MODEL`, `OPENAI_MODEL` | Optional model selection for the corresponding provider. |
+| `LOCAL_LLM_URL`, `LOCAL_LLM_MODEL` | Optional local OpenAI-compatible model endpoint and model name. |
+| `LOG_LEVEL`, `HOST`, `PORT` | Logging and server settings. |
 
-# Zero-Cloud Local LLM (Ollama / vLLM / LocalAI)
-LOCAL_LLM_URL=http://localhost:11434/v1
-LOCAL_LLM_MODEL=llama3.2
-```
+The `.env` file is ignored by Git. Do not put secrets in OpenAPI documents, screenshots, or committed files. Credentials for the API being tested are supplied as request headers or query parameters in the UI/CLI; they are distinct from the AI provider credentials.
 
----
+## CLI usage
 
-## 💻 Headless CLI & CI/CD Automation
+Run a suite and write reports:
 
-Run end-to-end API tests directly in CI/CD pipelines (GitHub Actions, GitLab CI, Azure DevOps, Jenkins) without opening a browser:
-
-### Execute Tests & Export Reports
 ```powershell
 python -m app.cli run `
   --spec petstore.yaml `
-  --base-url http://127.0.0.1:8000 `
-  --concurrency 5 `
+  --base-url https://api.example.com `
+  --allowed-hosts api.example.com `
   --output-junit results.xml `
   --output-markdown summary.md `
   --output-json report.json
 ```
 
-### Export Test Suite to Postman or pytest
-```powershell
-# Export to Postman Collection v2.1
-python -m app.cli export --spec petstore.yaml --format postman --output postman_collection.json
+Supply an API key as a request header when required:
 
-# Export to runnable standalone pytest test file
-python -m app.cli export --spec petstore.yaml --format pytest --output test_generated_api.py
+```powershell
+python -m app.cli run `
+  --spec openapi.yaml `
+  --base-url https://api.example.com `
+  --allowed-hosts api.example.com `
+  -H "Authorization: Bearer YOUR_API_TOKEN"
 ```
 
-### CLI Command Reference
-| Option | Description | Default |
-| :--- | :--- | :---: |
-| `--spec` | Path to OpenAPI YAML or JSON specification | *Required* |
-| `--base-url` | Target API base URL | *Required* |
-| `--allowed-hosts` | Comma-separated allowed target hostnames | Base URL host |
-| `--allow-private-network` | Permit localhost & private subnet execution | `False` |
-| `--concurrency` | Number of parallel worker threads (1–20) | `5` |
-| `--timeout` | Per-request timeout in seconds | `10.0` |
-| `-H, --header` | Custom request headers (repeatable e.g. `-H "Authorization: Bearer token"`) | None |
-| `-q, --query` | Custom query parameters (repeatable) | None |
-| `--output-junit` | File path to write standard JUnit XML report | None |
-| `--output-markdown` | File path to write GitHub PR / Step summary markdown | None |
-| `--output-json` | File path to write raw JSON report | None |
-| `--ai-provider` | Provider for AI failure analysis (`gemini`, `anthropic`, `openai`, `ollama`) | None |
-| `--no-exit-code` | Prevent non-zero exit code on test failure | `False` |
-
----
-
-## 🛡️ Built-in Security Guardrails
-
-1. **SSRF Guardrails**: Resolves and validates the destination, then pins the actual connection to that validated IP address to prevent DNS rebinding. Private, loopback, link-local, and reserved networks are blocked by default.
-2. **Server-Owned Allowlisting**: Web execution can only target hosts configured in the server's `ALLOWED_HOSTS`; request `allowed_hosts` values can narrow that list but cannot add targets.
-3. **Mutation Protection**: State-changing HTTP verbs (`POST`, `PUT`, `PATCH`, `DELETE`) are strictly blocked unless `allow_mutating_methods` is explicitly opted into.
-4. **Credential Scrubbing**: Sensitive headers (`Authorization`, `Set-Cookie`, `Proxy-Authenticate`) and sensitive response bodies are stripped from execution reports.
-5. **Zero Secret Leakage to AI**: AI failure diagnosis receives only test metadata, endpoint paths, duration, and status codes—**never** credentials, secrets, or raw request/response payloads.
-6. **API Access Control**: API routes accept loopback requests by default. Set `API_ACCESS_TOKEN` to require bearer authentication for every API request; use HTTPS when exposing the service beyond localhost.
-
----
-
-## 🧪 Running the Test Suite
+Export a Postman collection or a pytest file:
 
 ```powershell
-# Install dependencies, including Starlette's TestClient transport
-pip install -r requirements.txt
+python -m app.cli export --spec openapi.yaml --format postman --output postman_collection.json
+python -m app.cli export --spec openapi.yaml --format pytest --output test_generated_api.py
+```
 
-# Run the complete automated test suite
+Run `python -m app.cli --help`, `python -m app.cli run --help`, or `python -m app.cli export --help` for all options. Avoid placing real secrets directly in shell history; use a secure environment or a protected CI secret where appropriate.
+
+## Security and deployment notes
+
+- The executor validates target addresses and pins connections to validated DNS results to reduce SSRF and DNS-rebinding risk.
+- Web execution uses the server-owned `ALLOWED_HOSTS` allowlist. A browser request cannot expand it.
+- Mutating HTTP methods (`POST`, `PUT`, `PATCH`, and `DELETE`) require explicit permission in the run configuration. Use a staging API or disposable test data when testing operations that change state.
+- Redirects are disabled, response reads are bounded, and sensitive credentials are scrubbed from execution results.
+- Optional AI failure analysis receives sanitized test metadata rather than raw credentials or request/response bodies.
+- For personal use, running locally is the simplest deployment. Before hosting this tester publicly, configure `API_ACCESS_TOKEN`, restrict `ALLOWED_HOSTS`, use HTTPS, and review the deployment platform's function-duration and networking limits. Do not expose an unauthenticated API-testing proxy to the internet.
+
+### Deploy to Vercel
+
+The repository includes a Vercel configuration for the FastAPI entry point, the UI HTML asset, and exclusion of local environments, tests, and documentation from the serverless bundle. Vercel's Python runtime supports FastAPI and response streaming, subject to Vercel Function duration and bundle limits.
+
+1. Push the repository to a Git provider and import it into Vercel. Vercel should detect the FastAPI app at `app/main.py`.
+2. In the Vercel project's **Settings → Environment Variables**, add:
+   - `API_ACCESS_TOKEN`: a long, random secret. Enter the same value in the browser's **Server API Access Token** field when using the deployed app.
+   - `ALLOWED_HOSTS`: comma-separated exact target API hostnames, such as `generativelanguage.googleapis.com`. Only these hosts can be tested by this deployment.
+   - `ALLOW_PRIVATE_NETWORK_TARGETS`: `false`.
+3. Add provider credentials such as `GEMINI_API_KEY` only if you want Gemini to generate or analyze tests. Credentials for the target API itself are entered as request headers in the UI.
+4. Deploy a preview first. Confirm the homepage and `/docs` load, then run a small request against an API host listed in `ALLOWED_HOSTS`.
+5. If the app is for personal use, enable Vercel deployment protection so only you can open it. Keep the server token private and do not publish it in the repository.
+
+The target allowlist is a server-side security boundary, so a deployed instance cannot test arbitrary hostnames. Long test batches may also exceed a serverless function's maximum duration; start with small batches and check the limits for your Vercel plan.
+
+## Run the test suite
+
+```powershell
 python -m unittest discover tests
 ```
 
----
+## Project layout
 
-## 📁 Project Architecture
+```text
+app/
+  ai/          AI provider adapters
+  analysis/    Privacy-conscious failure analysis
+  api/         Upload, execution, workflow, generation, and export routes
+  executor/    HTTP execution, batch streaming, and contract validation
+  generator/   Deterministic and AI-assisted case generation
+  models/      Request, test-case, workflow, and result models
+  parser/      OpenAPI loading, validation, and extraction
+  report/      Summary and report exporters
+  ui/          Browser interface
+  cli.py       Command-line runner and exporters
+tests/         Unit and integration tests
+```
 
-```
-ai-api-testing-assistant/
-├── app/
-│   ├── ai/               # Multi-model LLM abstraction (Gemini, Claude, OpenAI, Ollama)
-│   ├── analysis/         # Privacy-conscious AI failure diagnostic engine
-│   ├── api/              # FastAPI routers (/upload, /run, /generate, /workflows, /export)
-│   ├── executor/         # HTTP executor, thread pool batch runner, and contract validator
-│   ├── generator/        # Deterministic boundary fuzzer and semantic AI generator
-│   ├── models/           # Pydantic data schemas (TestCase, ExecutionResult, Workflow, etc.)
-│   ├── parser/           # OpenAPI 3.0 / Swagger recursive JSON pointer dereferencer
-│   ├── report/           # Metrics summarizer, JUnit XML, Postman, and pytest exporters
-│   ├── ui/               # Modern dark/light single-page web application
-│   ├── cli.py            # Headless CLI entrypoint for terminal and CI/CD runs
-│   ├── constants.py      # Runtime limits and security guardrails
-│   └── main.py           # Application entrypoint & exception handling
-├── tests/                # Comprehensive unit, integration, and E2E test suites
-├── requirements.txt      # Project dependencies
-└── PROJECT_ROADMAP.md    # Multi-phase engineering roadmap and architecture status
-```
+See [`PROJECT_ROADMAP.md`](PROJECT_ROADMAP.md) for implementation details and operational follow-up.
